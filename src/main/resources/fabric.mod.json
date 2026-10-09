@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "breez-client",
+	"version": "${version}",
+	"name": "Breez Client",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/breez-client/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"breezeclient.breezeclient.BreezClient"
+		],
+		"client": [
+			"breezeclient.breezeclient.client.BreezClientClient"
+		]
+	},
+	"mixins": [
+		"breez-client.mixins.json",
+		{
+			"config": "breez-client.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
