@@ -2,7 +2,11 @@
 	"required": true,
 	"package": "breezeclient.breezeclient.client.mixin",
 	"compatibilityLevel": "JAVA_21",
-	"client": [],
+	"client": [
+		"EntityMixin",
+		"KeyboardInputMixin",
+		"MinecraftMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	}

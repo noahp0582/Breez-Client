@@ -26,7 +26,10 @@ public final class Session {
 			if (d != null) config.setLastServer(serverKey);
 			ChunkScanner.reset();
 		});
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> ChunkScanner.reset());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
+			ChunkScanner.reset();
+			breezeclient.breezeclient.client.modules.Freecam.reset();
+		});
 	}
 
 	public static boolean inGame() {

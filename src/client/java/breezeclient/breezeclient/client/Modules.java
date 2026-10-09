@@ -5,7 +5,11 @@ import breezeclient.breezeclient.client.modules.AntiAfk;
 import breezeclient.breezeclient.client.modules.AutoEat;
 import breezeclient.breezeclient.client.modules.AutoReconnect;
 import breezeclient.breezeclient.client.modules.AutoRelog;
+import breezeclient.breezeclient.client.modules.Freecam;
+import breezeclient.breezeclient.client.modules.Fullbright;
 import breezeclient.breezeclient.client.modules.KillSwitch;
+import breezeclient.breezeclient.client.modules.OreFinder;
+import breezeclient.breezeclient.client.modules.PlayerEsp;
 import breezeclient.breezeclient.client.modules.StaffList;
 import breezeclient.breezeclient.client.safety.StaffTracker;
 import breezeclient.breezeclient.client.modules.CustomBlockEsp;
@@ -38,6 +42,10 @@ public final class Modules {
 		m.register(new AutoReconnect());
 		m.register(new AntiAfk());
 		m.register(new AutoEat());
+		m.register(new Freecam());
+		m.register(new Fullbright());
+		m.register(new PlayerEsp());
+		m.register(new OreFinder());
 	}
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
