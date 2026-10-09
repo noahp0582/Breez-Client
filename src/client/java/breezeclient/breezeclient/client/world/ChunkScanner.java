@@ -32,6 +32,7 @@ public final class ChunkScanner {
 	private static final Deque<Long> QUEUE = new ArrayDeque<>();
 	private static final List<Long> ROUND = new ArrayList<>();
 	private static int roundIdx;
+	private static ClientLevel lastLevel;
 
 	private ChunkScanner() {}
 
@@ -76,6 +77,10 @@ public final class ChunkScanner {
 		if (level == null) {
 			if (!LOADED.isEmpty()) reset();
 			return;
+		}
+		if (level != lastLevel) { // dimension change swaps the level without unloading chunks one by one
+			lastLevel = level;
+			reset();
 		}
 		if (TARGETS.isEmpty()) return;
 

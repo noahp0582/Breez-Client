@@ -62,6 +62,7 @@ public class KillSwitch extends Module {
 		var conn = mc.getConnection();
 		if (conn == null) return;
 		log(hit);
+		breezeclient.breezeclient.client.Modules.stopAutomation();
 		if (!reconnect.get()) Reconnect.suppress();
 		conn.getConnection().disconnect(Component.literal("KillSwitch: " + hit.name() + " (" + hit.reason() + ")"));
 	}

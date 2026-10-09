@@ -160,6 +160,10 @@ public final class SeedOreSim {
 
 	/** Ore blocks predicted for veins that originate in chunk {@code cp}, keyed by position. May spill into neighbours. */
 	public static Map<BlockPos, BlockState> simulate(ClientLevel level, ChunkPos cp, long seed) {
+		if (level != heightsLevel) { // column heights belong to one level; never reuse them across dimensions or servers
+			heightsLevel = level;
+			HEIGHTS.clear();
+		}
 		if (!supports(level.dimension())) return Map.of();
 		Dim dim = dim(level.dimension());
 		int ox = cp.getMinBlockX(), oz = cp.getMinBlockZ();
@@ -237,6 +241,8 @@ public final class SeedOreSim {
 
 	/** Height of the first free block above the highest motion-blocking block of a column (scanned from loaded chunk data, because the client does not reliably prime its own heightmaps). */
 	private static final Map<Long, int[]> HEIGHTS = new HashMap<>();
+
+	private static ClientLevel heightsLevel;
 
 	public static void clearCaches() { HEIGHTS.clear(); }
 

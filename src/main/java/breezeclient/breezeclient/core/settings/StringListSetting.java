@@ -27,22 +27,22 @@ public class StringListSetting extends Setting<List<String>> {
 	private static List<String> normalize(List<String> in) {
 		List<String> out = new ArrayList<>();
 		for (String s : in) {
-			String l = s.toLowerCase();
+			String l = s.toLowerCase(java.util.Locale.ROOT);
 			if (!out.contains(l)) out.add(l);
 		}
 		return out;
 	}
 
-	public boolean contains(String s) { return value.contains(s.toLowerCase()); }
+	public boolean contains(String s) { return value.contains(s.toLowerCase(java.util.Locale.ROOT)); }
 
 	public boolean add(String s) {
-		String l = s.toLowerCase();
+		String l = s.toLowerCase(java.util.Locale.ROOT);
 		if (value.contains(l)) return false;
 		value.add(l);
 		return true;
 	}
 
-	public boolean remove(String s) { return value.remove(s.toLowerCase()); }
+	public boolean remove(String s) { return value.remove(s.toLowerCase(java.util.Locale.ROOT)); }
 
 	@Override public void set(List<String> v) { value = normalize(v); }
 

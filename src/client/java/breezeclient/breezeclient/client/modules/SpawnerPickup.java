@@ -68,6 +68,10 @@ public class SpawnerPickup extends Module {
 	private int timer;
 	private int mineTicks;
 	private int lookAwayAt;
+	private int expectedTotal;
+	private boolean clickedChest;
+	private int depositCarried = -1;
+	private int depositStuck;
 	private int awaysDone;
 	private int attempts;
 	private BlockPos target;
@@ -84,6 +88,9 @@ public class SpawnerPickup extends Module {
 	public String info() { return state == State.DONE ? "" : state.name().toLowerCase(); }
 
 	// lifecycle --------------------------------------------------------------------------------------------------
+
+	@Override
+	protected boolean persistsEnabled() { return false; }
 
 	@Override
 	protected void onEnable() {
@@ -117,6 +124,9 @@ public class SpawnerPickup extends Module {
 		state = s;
 		timer = wait;
 		stage = 0;
+		clickedChest = false;
+		depositCarried = -1;
+		depositStuck = 0;
 	}
 
 	// main loop --------------------------------------------------------------------------------------------------
@@ -218,6 +228,10 @@ public class SpawnerPickup extends Module {
 		mc.options.keyAttack.setDown(false);
 		mc.options.keyShift.setDown(false);
 		boolean full = inventoryFull(p);
+		if (full && spawnersCarried(p) == 0) {
+			stop("inventory is full, free some space first (broken spawners would be lost)");
+			return;
+		}
 		if (spawnersCarried(p) >= batch.asInt() || (full && spawnersCarried(p) > 0)) {
 			go(State.HOME_CMD, limiter.between(10, 30));
 			return;
@@ -282,6 +296,7 @@ public class SpawnerPickup extends Module {
 		var state = mc.level.getBlockState(target);
 		float progress = state.getDestroyProgress(p, mc.level, target);
 		int total = progress <= 0f ? 400 : (int) Math.ceil(1.0 / progress);
+		expectedTotal = total;
 		lookAwayAt = Math.max(5, (int) (total * (0.4 + 0.3 * rng.nextDouble())));
 		mineTicks = 0;
 		awaysDone = 0;
@@ -296,6 +311,10 @@ public class SpawnerPickup extends Module {
 	private void mineFirst(Minecraft mc, LocalPlayer p) {
 		if (!mc.level.getBlockState(target).is(Blocks.SPAWNER)) {
 			broken(mc);
+			return;
+		}
+		if (mc.screen != null) { // vanilla only continues an attack with no screen open; do not burn the timeout
+			mc.options.keyAttack.setDown(false);
 			return;
 		}
 		RotationController.aimAtPoint(center(target), 12f);
@@ -317,6 +336,7 @@ public class SpawnerPickup extends Module {
 		RotationController.aimAtPoint(center(target), 14f);
 		go(State.MINE_FINISH, 0);
 		mineTicks = 0;
+		lookAwayAt = Math.max(5, (int) (expectedTotal * (0.4 + 0.3 * rng.nextDouble())));
 	}
 
 	private void mineFinish(Minecraft mc, LocalPlayer p) {
@@ -324,10 +344,16 @@ public class SpawnerPickup extends Module {
 			broken(mc);
 			return;
 		}
+		if (mc.screen != null) {
+			mc.options.keyAttack.setDown(false);
+			return;
+		}
 		RotationController.aimAtPoint(center(target), 12f);
 		if (RotationController.busy() && !onTarget(mc)) return;
 		mc.options.keyAttack.setDown(true);
-		if (++mineTicks > 20 * 40) giveUp(mc, "mining timed out");
+		mineTicks++;
+		if (awaysDone < lookAways.asInt() && mineTicks >= lookAwayAt) go(State.LOOK_AWAY, 0);
+		else if (mineTicks > 20 * 40) giveUp(mc, "mining timed out");
 	}
 
 	private void giveUp(Minecraft mc, String why) {
@@ -338,6 +364,7 @@ public class SpawnerPickup extends Module {
 	}
 
 	private void broken(Minecraft mc) {
+		failed.add(target.asLong()); // done: never target this position again, the scanner may still list it for a while
 		mc.options.keyAttack.setDown(false);
 		RotationController.clear();
 		go(State.SETTLE, limiter.between(6, 14));
@@ -415,8 +442,16 @@ public class SpawnerPickup extends Module {
 	private void openChest(Minecraft mc, LocalPlayer p) {
 		BlockPos c = chest();
 		if (c == null) return;
+		if (!mc.level.getBlockState(c).is(Blocks.ENDER_CHEST)) {
+			stop("the saved position is not an ender chest (set it again with .spawner chest)");
+			return;
+		}
 		if (p.containerMenu != p.inventoryMenu) {
-			go(State.DEPOSIT, limiter.between(8, 16));
+			if (clickedChest) { // only a menu we opened ourselves counts
+				go(State.DEPOSIT, limiter.between(8, 16));
+			} else {
+				p.closeContainer(); // something else opened a menu (server GUI): never deposit into it
+			}
 			return;
 		}
 		RotationController.aimAtPoint(center(c), 14f);
@@ -425,6 +460,7 @@ public class SpawnerPickup extends Module {
 			if (stage++ % 20 == 0) {
 				mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, bh);
 				p.swing(InteractionHand.MAIN_HAND);
+				clickedChest = true;
 			}
 			if (stage > 100) stop("could not open the ender chest");
 		} else if (stage++ > 100) {
@@ -438,9 +474,16 @@ public class SpawnerPickup extends Module {
 			go(State.OPEN_CHEST, 5);
 			return;
 		}
+		int carried = spawnersCarried(p);
+		if (depositCarried >= 0 && carried >= depositCarried && ++depositStuck >= 3) {
+			go(State.CLOSE_CHEST, limiter.between(8, 18)); // nothing is moving: the chest is full
+			return;
+		}
+		if (depositCarried >= 0 && carried < depositCarried) depositStuck = 0;
 		for (Slot s : menu.slots) {
 			// only slots of the player's own inventory, only spawners
 			if (s.container == p.getInventory() && s.getItem().is(Items.SPAWNER)) {
+				depositCarried = carried;
 				mc.gameMode.handleInventoryMouseClick(menu.containerId, s.index, 0, ClickType.QUICK_MOVE, p);
 				timer = limiter.nextDelayTicks(5, 1.5, 2);
 				return;

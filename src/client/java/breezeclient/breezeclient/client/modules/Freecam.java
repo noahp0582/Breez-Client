@@ -34,6 +34,9 @@ public class Freecam extends Module {
 	}
 
 	@Override
+	protected boolean persistsEnabled() { return false; }
+
+	@Override
 	protected void onEnable() {
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer p = mc.player;
@@ -70,7 +73,7 @@ public class Freecam extends Module {
 	@Override
 	protected void onTick() {
 		Minecraft mc = Minecraft.getInstance();
-		if (cam == null || mc.player == null || mc.level == null || cam.level() != mc.level) {
+		if (cam == null || mc.player == null || mc.level == null || cam.level() != mc.level || mc.getCameraEntity() != cam) {
 			setEnabled(false);
 			return;
 		}

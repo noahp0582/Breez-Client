@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.session;
 
+import breezeclient.breezeclient.client.Modules;
 import breezeclient.breezeclient.client.world.ChunkScanner;
 import breezeclient.breezeclient.client.world.Waypoints;
 import breezeclient.breezeclient.core.config.ConfigManager;
@@ -26,10 +27,11 @@ public final class Session {
 			if (d != null) config.setLastServer(serverKey);
 			ChunkScanner.reset();
 		});
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
+		// Fabric fires DISCONNECT on the network thread; module and scanner state belongs to the client thread.
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> mc.execute(() -> {
 			ChunkScanner.reset();
-			breezeclient.breezeclient.client.modules.Freecam.reset();
-		});
+			Modules.stopAutomation();
+		}));
 	}
 
 	public static boolean inGame() {

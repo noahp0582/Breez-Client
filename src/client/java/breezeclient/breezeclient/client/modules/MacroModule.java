@@ -27,6 +27,7 @@ public class MacroModule extends Module {
 	private KeyMapping held;
 	private boolean waitingLook;
 	private boolean jumpPending;
+	private boolean sneaking;
 
 	public MacroModule(String name, String script) {
 		super(name, Category.MISC);
@@ -35,6 +36,9 @@ public class MacroModule extends Module {
 	}
 
 	public String script() { return script; }
+
+	@Override
+	protected boolean persistsEnabled() { return false; }
 
 	@Override
 	protected void onEnable() {
@@ -58,6 +62,8 @@ public class MacroModule extends Module {
 		if (held != null) held.setDown(false);
 		held = null;
 		mc.options.keyJump.setDown(false);
+		if (sneaking) mc.options.keyShift.setDown(false);
+		sneaking = false;
 		if (waitingLook) RotationController.clear();
 		waitingLook = false;
 	}
@@ -135,7 +141,8 @@ public class MacroModule extends Module {
 				return true;
 			}
 			case "sneak" -> {
-				mc.options.keyShift.setDown(s.args().get(0).equals("on"));
+				sneaking = s.args().get(0).equals("on");
+				mc.options.keyShift.setDown(sneaking);
 				return false;
 			}
 			case "jump" -> {

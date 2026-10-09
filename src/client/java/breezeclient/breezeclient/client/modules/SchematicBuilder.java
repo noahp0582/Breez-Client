@@ -116,6 +116,9 @@ public class SchematicBuilder extends Module {
 	// lifecycle --------------------------------------------------------------------------------------------------
 
 	@Override
+	protected boolean persistsEnabled() { return false; }
+
+	@Override
 	protected void onEnable() {
 		Minecraft mc = Minecraft.getInstance();
 		if (loaded == null || origin == null || mc.level == null) {
@@ -140,6 +143,7 @@ public class SchematicBuilder extends Module {
 
 	@Override
 	protected void onDisable() {
+		Minecraft.getInstance().options.keyShift.setDown(false);
 		walker.cancel();
 		RotationController.clear();
 		state = State.IDLE;
@@ -163,6 +167,8 @@ public class SchematicBuilder extends Module {
 		LocalPlayer p = mc.player;
 		if (p == null || mc.level == null || mc.gameMode == null) return;
 		walker.tick();
+		if (p.containerMenu != p.inventoryMenu) p.closeContainer(); // a click opened a chest/crafting table: never stay inside it
+		mc.options.keyShift.setDown(state == State.AIM || state == State.PLACE || state == State.VERIFY); // sneak so clicks do not use containers or doors
 		if (timer > 0) {
 			timer--;
 			return;
@@ -199,10 +205,11 @@ public class SchematicBuilder extends Module {
 		while (idx < queue.size()) {
 			Target t = queue.get(idx);
 			if (!mc.level.getChunkSource().hasChunk(t.pos().getX() >> 4, t.pos().getZ() >> 4)) {
-				skip("chunk not loaded");
+				deferred.add(t); // revisit once the chunk loads instead of dropping it
+				idx++;
 				continue;
 			}
-			if (mc.level.getBlockState(t.pos()) == t.want()) {
+			if (mc.level.getBlockState(t.pos()).getBlock() == t.want().getBlock()) {
 				placed++;
 				idx++;
 				continue;
@@ -269,6 +276,11 @@ public class SchematicBuilder extends Module {
 				return;
 			}
 			plannedSlot = prepareItem(mc, p, t.want());
+			if (plannedSlot == -4) {
+				plannedHit = null;
+				skip("block has no item form");
+				return;
+			}
 			if (plannedSlot == -2) {
 				state = State.NEED_ITEMS;
 				return;
@@ -322,9 +334,7 @@ public class SchematicBuilder extends Module {
 	/** @return hotbar slot holding the item (selected), -2 when missing, -3 while a swap is in progress. */
 	private int prepareItem(Minecraft mc, LocalPlayer p, BlockState want) {
 		Item item = want.getBlock().asItem();
-		if (p.getAbilities().instabuild) {
-			// creative: any stack of it, otherwise nothing to place
-		}
+		if (item == net.minecraft.world.item.Items.AIR) return -4; // no item form: cannot be placed by hand
 		for (int i = 0; i < 9; i++) {
 			ItemStack s = p.getInventory().getItem(i);
 			if (s.is(item)) {

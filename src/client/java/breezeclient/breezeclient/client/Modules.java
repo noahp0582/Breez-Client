@@ -63,6 +63,14 @@ public final class Modules {
 		m.register(builder);
 	}
 
+	/** Switches off everything that acts on its own (pathing, mining, building, macros, camera). Call on disconnect and when a safety fires. */
+	public static void stopAutomation() {
+		if (spawnerPickup != null) spawnerPickup.setEnabled(false);
+		if (builder != null) builder.setEnabled(false);
+		for (var m : BreezClientClient.macros.all()) m.setEnabled(false);
+		Freecam.reset();
+	}
+
 	public static SpawnerPickup spawnerPickup;
 	public static SeedOres seedOres;
 	public static SchematicBuilder builder;

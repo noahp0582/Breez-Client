@@ -186,6 +186,39 @@ class GuiCoreTest {
 		assertFalse(p.enabled(), "a held module must never stay on after the key is released");
 	}
 
+	static class AutoMod extends Module {
+		AutoMod() { super("Auto", Category.MISC); }
+
+		@Override
+		protected boolean persistsEnabled() { return false; }
+	}
+
+	@Test
+	void automationModulesNeverRestartFromConfig() {
+		AutoMod a = new AutoMod();
+		a.setEnabled(true);
+		assertFalse(a.toJson().get("enabled").getAsBoolean());
+		com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+		o.addProperty("enabled", true);
+		AutoMod b = new AutoMod();
+		b.fromJson(o);
+		assertFalse(b.enabled());
+	}
+
+	@Test
+	void stringListLowercasesWithRootLocale() {
+		java.util.Locale old = java.util.Locale.getDefault();
+		try {
+			java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+			StringListSetting s = new StringListSetting("Trusted", List.of());
+			s.add("ILLIA");
+			assertTrue(s.contains("illia"));
+			assertTrue(s.contains("ILLIA"));
+		} finally {
+			java.util.Locale.setDefault(old);
+		}
+	}
+
 	@Test
 	void stringListKindAndDefaultTracking() {
 		StringListSetting s = new StringListSetting("Blocks", List.of("minecraft:stone")).kind(StringListSetting.Kind.BLOCK);

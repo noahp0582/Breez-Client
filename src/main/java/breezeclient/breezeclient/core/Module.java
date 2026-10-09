@@ -79,6 +79,9 @@ public abstract class Module {
 
 	public static void setListener(ModuleListener l) { listener = l; }
 
+	/** Modules that act on their own (pathing, mining, macros) return false so they never restart by themselves on the next launch. */
+	protected boolean persistsEnabled() { return true; }
+
 	protected void onEnable() {}
 	protected void onDisable() {}
 	protected void onTick() {}
@@ -93,7 +96,7 @@ public abstract class Module {
 
 	public JsonObject toJson() {
 		JsonObject o = new JsonObject();
-		o.addProperty("enabled", enabled);
+		o.addProperty("enabled", enabled && persistsEnabled());
 		o.addProperty("key", key);
 		o.addProperty("chatFeedback", chatFeedback);
 		o.addProperty("visibleInHud", visibleInHud);
@@ -121,7 +124,7 @@ public abstract class Module {
 			JsonObject s = o.getAsJsonObject("settings");
 			for (Setting<?> st : settings) if (s.has(st.name())) st.fromJson(s.get(st.name()));
 		}
-		if (o.has("enabled") && o.get("enabled").isJsonPrimitive() && o.get("enabled").getAsJsonPrimitive().isBoolean()) {
+		if (persistsEnabled() && o.has("enabled") && o.get("enabled").isJsonPrimitive() && o.get("enabled").getAsJsonPrimitive().isBoolean()) {
 			setEnabled(o.get("enabled").getAsBoolean());
 		}
 	}
