@@ -79,8 +79,18 @@ public class SpawnerPickup extends Module {
 	private int collected;
 	private int stage;
 	private boolean moreRemaining;
+	private boolean salvage;
+	private Runnable onFinished;
 
 	public SpawnerPickup() { super("SpawnerPickup", Category.WORLD); }
+
+	/** Quick mode for SpawnerProtect: mine every spawner within 12 blocks, skip the home trip, then call {@code finished}. */
+	public void startSalvage(Runnable finished) {
+		setEnabled(false);
+		salvage = true;
+		onFinished = finished;
+		setEnabled(true);
+	}
 
 	public void setChest(BlockPos p) { chestPos.set(p.getX() + " " + p.getY() + " " + p.getZ()); }
 
@@ -113,6 +123,12 @@ public class SpawnerPickup extends Module {
 		mc.options.keyShift.setDown(false);
 		if (mc.player != null && mc.player.containerMenu != mc.player.inventoryMenu) mc.player.closeContainer();
 		state = State.DONE;
+		if (salvage) {
+			salvage = false;
+			Runnable r = onFinished;
+			onFinished = null;
+			if (r != null) r.run();
+		}
 	}
 
 	private void stop(String why) {
@@ -137,7 +153,7 @@ public class SpawnerPickup extends Module {
 		LocalPlayer p = mc.player;
 		if (p == null || mc.level == null || mc.gameMode == null) return;
 
-		if (stopIfPlayer.get() > 0) {
+		if (!salvage && stopIfPlayer.get() > 0) {
 			var hit = StaffTracker.findNearby(stopIfPlayer.get(), false, false, true, Set.of());
 			if (hit != null) {
 				stop("player " + hit.name() + " nearby");
@@ -232,13 +248,13 @@ public class SpawnerPickup extends Module {
 			stop("inventory is full, free some space first (broken spawners would be lost)");
 			return;
 		}
-		if (spawnersCarried(p) >= batch.asInt() || (full && spawnersCarried(p) > 0)) {
+		if (!salvage && (spawnersCarried(p) >= batch.asInt() || (full && spawnersCarried(p) > 0))) {
 			go(State.HOME_CMD, limiter.between(10, 30));
 			return;
 		}
 		BlockPos best = null;
 		double bestD = Double.MAX_VALUE;
-		double r = searchRadius.get();
+		double r = salvage ? 12 : searchRadius.get();
 		for (var list : spawners.chunks()) {
 			for (BlockPos b : list) {
 				if (failed.contains(b.asLong())) continue;
@@ -250,7 +266,7 @@ public class SpawnerPickup extends Module {
 			}
 		}
 		if (best == null) {
-			if (spawnersCarried(p) > 0) go(State.HOME_CMD, limiter.between(10, 30));
+			if (!salvage && spawnersCarried(p) > 0) go(State.HOME_CMD, limiter.between(10, 30));
 			else go(State.DONE, 0);
 			return;
 		}

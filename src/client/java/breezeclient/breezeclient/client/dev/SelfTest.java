@@ -41,7 +41,7 @@ public final class SelfTest {
 		}
 		if (ticks == 60) {
 			if (server != null) StaffTracker.profile().setSeed(String.valueOf(server.getWorldData().worldGenOptions().seed()));
-			for (String n : List.of("StorageESP", "SpawnerESP", "AmethystDetector", "OreFinder", "Fullbright", "PlayerESP", "SusChunks", "SeedOres", "StaffList", "BlockESP", "ClusterESP")) {
+			for (String n : List.of("StorageESP", "SpawnerESP", "AmethystDetector", "OreFinder", "Fullbright", "PlayerESP", "SusChunks", "SeedOres", "StaffList", "BlockESP", "ClusterESP", "NewChunks", "TrailFinder", "StashFinder", "BlockEntityESP", "EntityStorageESP", "PortalESP", "HoleESP", "SpawnerNametags", "MobESP", "WeatherNotifier")) {
 				Module m = BreezClientClient.MODULES.get(n);
 				if (m != null) m.setEnabled(true);
 			}
@@ -55,18 +55,39 @@ public final class SelfTest {
 				finish(mc);
 				return;
 			}
+			ageNear = ageSummary(mc);
+			server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "execute as @a in minecraft:overworld run tp @s 20000 100 20000"));
+		}
+		if (ticks == 20 * 40 + 100 + 20 * 25) {
+			ageFar = ageSummary(mc);
 			server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "execute as @a in minecraft:the_nether run tp @s 100 80 100"));
 		}
-		if (ticks == 20 * 40 + 100 + 20 * 40) finish(mc);
+		if (ticks == 20 * 40 + 100 + 20 * 25 + 20 * 40) finish(mc);
 	}
 
-	private static String overworldReport = "";
+	private static String overworldReport = "", ageNear = "", ageFar = "";
+
+	/** New/old chunk counts within 6 chunks of the player. */
+	private static String ageSummary(Minecraft mc) {
+		int n = 0, o = 0, u = 0;
+		int pcx = mc.player.chunkPosition().x, pcz = mc.player.chunkPosition().z;
+		for (int dx = -6; dx <= 6; dx++) {
+			for (int dz = -6; dz <= 6; dz++) {
+				switch (breezeclient.breezeclient.client.world.ChunkAgeTracker.state(pcx + dx, pcz + dz)) {
+					case NEW -> n++;
+					case OLD -> o++;
+					default -> u++;
+				}
+			}
+		}
+		return "new=" + n + " old=" + o + " unknown=" + u;
+	}
 
 	private static void finish(Minecraft mc) {
 		String nether = report(true);
 		try {
 			Path out = FabricLoader.getInstance().getGameDir().resolve("breez-selftest.txt");
-			Files.writeString(out, overworldReport + "\n=== after teleport (dimension: " + (mc.level == null ? "?" : mc.level.dimension().identifier()) + ") ===\n" + nether);
+			Files.writeString(out, overworldReport + "\nchunkAge near spawn (saved earlier, should be OLD): " + ageNear + "\nchunkAge 20000 blocks away (generated now, should be NEW): " + ageFar + "\n=== after teleport (dimension: " + (mc.level == null ? "?" : mc.level.dimension().identifier()) + ") ===\n" + nether);
 		} catch (Exception ignored) {
 			// nothing else to do
 		}

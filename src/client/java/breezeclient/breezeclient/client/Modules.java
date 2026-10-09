@@ -1,7 +1,19 @@
 package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.modules.AmethystDetector;
+import breezeclient.breezeclient.client.modules.BlockEntityEsp;
 import breezeclient.breezeclient.client.modules.ClusterEsp;
+import breezeclient.breezeclient.client.modules.CoordSnapper;
+import breezeclient.breezeclient.client.modules.EntityStorageEsp;
+import breezeclient.breezeclient.client.modules.HoleEsp;
+import breezeclient.breezeclient.client.modules.MobEsp;
+import breezeclient.breezeclient.client.modules.NewChunks;
+import breezeclient.breezeclient.client.modules.PortalEsp;
+import breezeclient.breezeclient.client.modules.SpawnerNametags;
+import breezeclient.breezeclient.client.modules.SpawnerProtect;
+import breezeclient.breezeclient.client.modules.StashFinder;
+import breezeclient.breezeclient.client.modules.TrailFinder;
+import breezeclient.breezeclient.client.modules.WeatherNotifier;
 import breezeclient.breezeclient.client.modules.AntiAfk;
 import breezeclient.breezeclient.client.modules.AutoEat;
 import breezeclient.breezeclient.client.modules.AutoReconnect;
@@ -42,6 +54,18 @@ public final class Modules {
 		m.register(new SpawnerEsp());
 		m.register(new AmethystDetector());
 		m.register(new ClusterEsp());
+		m.register(new NewChunks());
+		m.register(new TrailFinder());
+		m.register(new StashFinder());
+		m.register(new BlockEntityEsp());
+		m.register(new EntityStorageEsp());
+		m.register(new PortalEsp());
+		m.register(new HoleEsp());
+		m.register(new SpawnerNametags());
+		m.register(new MobEsp());
+		m.register(new WeatherNotifier());
+		m.register(new CoordSnapper());
+		m.register(new SpawnerProtect());
 		blockEsp = new CustomBlockEsp();
 		m.register(blockEsp);
 		m.register(new KillSwitch());
@@ -78,6 +102,54 @@ public final class Modules {
 	public static SchematicBuilder builder;
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
+		c.register(new Command() {
+			public String name() { return "chunks"; }
+			public String usage() { return "chunks <stats|export|clear>"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var age = breezeclient.breezeclient.client.world.ChunkAgeTracker.current();
+				String sub = a.length == 0 ? "stats" : a[0].toLowerCase();
+				switch (sub) {
+					case "stats" -> reply.accept(age.count(breezeclient.breezeclient.core.world.ChunkAge.State.NEW) + " new chunks, " + age.count(breezeclient.breezeclient.core.world.ChunkAge.State.OLD) + " old chunks recorded in this dimension.");
+					case "export" -> {
+						try {
+							reply.accept("Wrote " + breezeclient.breezeclient.client.world.ChunkAgeTracker.export());
+						} catch (java.io.IOException e) {
+							reply.accept("Could not export: " + e.getMessage());
+						}
+					}
+					case "clear" -> {
+						breezeclient.breezeclient.client.world.ChunkAgeTracker.clearCurrent();
+						reply.accept("Chunk records for this dimension cleared.");
+					}
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "stash"; }
+			public String usage() { return "stash <list [n]|export|clear>"; }
+			public void run(String[] a, Consumer<String> reply) {
+				String sub = a.length == 0 ? "list" : a[0].toLowerCase();
+				switch (sub) {
+					case "list" -> {
+						int n = 10;
+						if (a.length > 1) {
+							try { n = Math.max(1, Math.min(50, Integer.parseInt(a[1]))); } catch (NumberFormatException e) { reply.accept("Usage: " + usage()); return; }
+						}
+						var top = StashFinder.top(n);
+						if (top.isEmpty()) reply.accept("No stashes found (is StashFinder enabled?).");
+						for (var r : top) reply.accept(String.format("score %.0f at %d %d %d: %s", r.score(), r.center().getX(), r.center().getY(), r.center().getZ(), r.summary()));
+					}
+					case "export" -> reply.accept(java.nio.file.Files.exists(StashFinder.csv()) ? "Finds are logged in " + StashFinder.csv() : "No finds logged yet.");
+					case "clear" -> {
+						StashFinder.clear();
+						reply.accept("Stash list and log cleared.");
+					}
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
+
 		c.register(new Command() {
 			public String name() { return "geodes"; }
 			public String usage() { return "geodes [count|reset]"; }

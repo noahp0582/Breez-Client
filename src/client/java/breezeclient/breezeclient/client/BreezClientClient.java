@@ -54,6 +54,8 @@ public class BreezClientClient implements ClientModInitializer {
 		Reconnect.register();
 		KillSwitch.registerEvents();
 		ChunkScanner.register();
+		breezeclient.breezeclient.client.world.ChunkAgeTracker.register();
+		breezeclient.breezeclient.client.hud.HudElements.register(new breezeclient.breezeclient.client.hud.ChunkMapElement());
 		Session.register(config);
 		ChatCommands.register(commands);
 		KeyPoller.register(MODULES, config);

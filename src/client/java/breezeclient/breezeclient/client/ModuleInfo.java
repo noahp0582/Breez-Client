@@ -28,6 +28,18 @@ public final class ModuleInfo {
 		m("SpawnerESP", "Highlights mob spawners and tells you where new ones appear.");
 		m("AmethystDetector", "Finds amethyst geodes, judges how grown they are from their buds, and notifies you when they are ready.");
 		m("ClusterESP", "Marks the empty slots next to budding amethyst where crystals can still grow: shows which geodes are unfinished.");
+		m("NewChunks", "Marks chunks that were freshly generated while you watched (new) and chunks that already existed (old). Old chunks inside new terrain are where players have been.");
+		m("TrailFinder", "Points to old chunks that border unexplored chunks: the places a player trail or base continues.");
+		m("StashFinder", "Scores chunks by storage, redstone, decoration or spawners, ignores natural dungeons, and logs every find to stashes.csv.");
+		m("BlockEntityESP", "Highlights block entities from the chunk data itself: chests, spawners, signs (with text), beds and more, even when hidden or camouflaged.");
+		m("EntityStorageESP", "Finds stashes that are entities: chest boats and minecarts, pack animals with chests, item frames, armor stands.");
+		m("PortalESP", "Highlights nether portals.");
+		m("HoleESP", "Finds 1x1 holes walled on all sides; green ones are bedrock/obsidian safe holes.");
+		m("SpawnerNametags", "Labels spawners with their mob type and draws the 16-block activation ring.");
+		m("MobESP", "Highlights hostile (and optionally passive) mobs through walls.");
+		m("WeatherNotifier", "Pop-up when it starts or stops raining or storming.");
+		m("CoordSnapper", "Bind to a key: copies the coordinates of the block you are looking at.");
+		m("SpawnerProtect", "When a stranger gets close, picks up nearby spawners then leaves the server.");
 		m("BlockESP", "Highlights any blocks you choose through walls. Edit the list in the settings or with .blockesp.");
 		m("OreFinder", "Highlights the ores the server has actually sent you, including ancient debris.");
 		m("SeedOres", "Predicts where ores and ancient debris generated using the world seed, even when anti-xray hides them. Set the seed in the Profiles tab.");
