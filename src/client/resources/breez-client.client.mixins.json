@@ -6,7 +6,12 @@
 		"EntityMixin",
 		"KeyboardInputMixin",
 		"MinecraftMixin",
-		"ClientPacketListenerMixin"
+		"ClientPacketListenerMixin",
+		"GameRendererMixin",
+		"CameraMixin",
+		"PlayerInfoMixin",
+		"MinecraftAccessor",
+		"AbstractContainerScreenAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1

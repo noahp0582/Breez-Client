@@ -41,7 +41,7 @@ public final class SelfTest {
 		}
 		if (ticks == 60) {
 			if (server != null) StaffTracker.profile().setSeed(String.valueOf(server.getWorldData().worldGenOptions().seed()));
-			for (String n : List.of("StorageESP", "SpawnerESP", "AmethystDetector", "OreFinder", "Fullbright", "PlayerESP", "SusChunks", "SeedOres", "StaffList", "BlockESP", "ClusterESP", "NewChunks", "TrailFinder", "StashFinder", "BlockEntityESP", "EntityStorageESP", "PortalESP", "HoleESP", "SpawnerNametags", "MobESP", "WeatherNotifier")) {
+			for (String n : List.of("StorageESP", "SpawnerESP", "AmethystDetector", "OreFinder", "Fullbright", "PlayerESP", "SusChunks", "SeedOres", "StaffList", "BlockESP", "ClusterESP", "NewChunks", "TrailFinder", "StashFinder", "BlockEntityESP", "EntityStorageESP", "PortalESP", "HoleESP", "SpawnerNametags", "MobESP", "WeatherNotifier", "CustomFOV", "Zoom", "FreeLook", "SkinProtect", "JumpCircles", "HitParticles", "NameProtect", "CustomCrosshair", "AimAssist", "Triggerbot", "HoverTotem", "AnchorMacro", "DoubleAnchor", "MaceSwap", "MaceBomber", "ShieldBreaker", "FastUse")) {
 				Module m = BreezClientClient.MODULES.get(n);
 				if (m != null) m.setEnabled(true);
 			}

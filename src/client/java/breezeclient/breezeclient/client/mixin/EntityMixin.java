@@ -13,8 +13,12 @@ public abstract class EntityMixin {
 	/** Mouse look turns the freecam camera instead of the real player. */
 	@Inject(method = "turn", at = @At("HEAD"), cancellable = true)
 	private void breez$turn(double yRot, double xRot, CallbackInfo ci) {
-		if (Freecam.active() && (Object) this instanceof LocalPlayer) {
+		if (!((Object) this instanceof LocalPlayer)) return;
+		if (Freecam.active()) {
 			Freecam.turn(yRot, xRot);
+			ci.cancel();
+		} else if (breezeclient.breezeclient.client.modules.FreeLook.active()) {
+			breezeclient.breezeclient.client.modules.FreeLook.turn(yRot, xRot);
 			ci.cancel();
 		}
 	}

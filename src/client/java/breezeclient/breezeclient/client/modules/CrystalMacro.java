@@ -50,8 +50,7 @@ public class CrystalMacro extends Module {
 		if (hr == null) return;
 
 		if (breakCrystals.get() && hr instanceof EntityHitResult eh && eh.getEntity() instanceof EndCrystal crystal) {
-			mc.gameMode.attack(p, crystal);
-			p.swing(InteractionHand.MAIN_HAND);
+			if (!CombatUtil.attack("CrystalMacro", crystal)) return;
 			cooldown = limiter.nextDelayTicks(breakDelay.get(), breakDelay.get() * 0.3, 1);
 			return;
 		}
