@@ -3,9 +3,9 @@
 	"id": "breez-client",
 	"version": "${version}",
 	"name": "Breez Client",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "Breez Client: a standalone utility client for Minecraft 1.21.11.",
 	"authors": [
-		"Me!"
+		"noahp"
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
