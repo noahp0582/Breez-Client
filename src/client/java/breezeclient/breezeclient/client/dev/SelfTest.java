@@ -41,7 +41,7 @@ public final class SelfTest {
 		}
 		if (ticks == 60) {
 			if (server != null) StaffTracker.profile().setSeed(String.valueOf(server.getWorldData().worldGenOptions().seed()));
-			for (String n : List.of("StorageESP", "SpawnerESP", "AmethystDetector", "OreFinder", "Fullbright", "PlayerESP", "SusChunks", "SeedOres", "StaffList", "BlockESP")) {
+			for (String n : List.of("StorageESP", "SpawnerESP", "AmethystDetector", "OreFinder", "Fullbright", "PlayerESP", "SusChunks", "SeedOres", "StaffList", "BlockESP", "ClusterESP")) {
 				Module m = BreezClientClient.MODULES.get(n);
 				if (m != null) m.setEnabled(true);
 			}
@@ -79,6 +79,11 @@ public final class SelfTest {
 		sb.append("moduleCrashes=").append(ModuleManager.crashCount()).append('\n');
 		sb.append("freecamLeftActive=").append(Freecam.active()).append('\n');
 		for (Module m : BreezClientClient.MODULES.all()) if (m.enabled()) sb.append("  ").append(m.name()).append(" info=").append(m.info()).append('\n');
+		var geodes = breezeclient.breezeclient.client.modules.AmethystDetector.geodes();
+		sb.append("geodes=").append(geodes.size()).append(" toastsQueued=").append(breezeclient.breezeclient.client.gui.Toasts.count()).append('\n');
+		for (var g : geodes.subList(0, Math.min(6, geodes.size()))) {
+			sb.append(String.format("  geode at %d %d %d: %.0f%% grown, %dC %dL %dM %dS, %d open, coverage %.0f%%, ~%.1fh, budding %d%n", g.center().x(), g.center().y(), g.center().z(), g.grownPercent(), g.cluster(), g.large(), g.medium(), g.small(), g.openSlots(), g.coverage(), g.estHours(), g.budding()));
+		}
 		sb.append(Modules.seedOres.verify());
 		return sb.toString();
 	}

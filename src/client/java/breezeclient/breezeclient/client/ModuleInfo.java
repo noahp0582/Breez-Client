@@ -27,6 +27,7 @@ public final class ModuleInfo {
 		m("StorageESP", "Boxes and tracers on chests, trapped chests, barrels, ender chests, shulker boxes, hoppers and furnaces.");
 		m("SpawnerESP", "Highlights mob spawners and tells you where new ones appear.");
 		m("AmethystDetector", "Finds amethyst geodes, judges how grown they are from their buds, and notifies you when they are ready.");
+		m("ClusterESP", "Marks the empty slots next to budding amethyst where crystals can still grow: shows which geodes are unfinished.");
 		m("BlockESP", "Highlights any blocks you choose through walls. Edit the list in the settings or with .blockesp.");
 		m("OreFinder", "Highlights the ores the server has actually sent you, including ancient debris.");
 		m("SeedOres", "Predicts where ores and ancient debris generated using the world seed, even when anti-xray hides them. Set the seed in the Profiles tab.");
@@ -50,8 +51,6 @@ public final class ModuleInfo {
 		s("StorageESP", "Fill", "Render", "Fill the boxes with a translucent color.");
 		s("SpawnerESP", "Notify", "Alerts", "Show a notification when a new spawner is found.");
 		s("SpawnerESP", "Waypoint", "Alerts", "Save a waypoint for each new spawner.");
-		s("AmethystDetector", "Notify", "Alerts", "Show a notification for each cluster found.");
-		s("AmethystDetector", "Waypoint", "Alerts", "Save a waypoint for each cluster found.");
 		s("BlockESP", "Blocks", "Blocks", "Blocks to highlight.");
 		s("SeedOres", "Only hidden ores", "General", "Skip ores the server already shows you; only mark ones that are hidden.");
 		s("SeedOres", "Simulate radius (chunks)", "Performance", "How many chunks around you are simulated.");

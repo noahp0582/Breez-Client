@@ -1,6 +1,7 @@
 package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.modules.AmethystDetector;
+import breezeclient.breezeclient.client.modules.ClusterEsp;
 import breezeclient.breezeclient.client.modules.AntiAfk;
 import breezeclient.breezeclient.client.modules.AutoEat;
 import breezeclient.breezeclient.client.modules.AutoReconnect;
@@ -40,6 +41,7 @@ public final class Modules {
 		m.register(new StorageEsp());
 		m.register(new SpawnerEsp());
 		m.register(new AmethystDetector());
+		m.register(new ClusterEsp());
 		blockEsp = new CustomBlockEsp();
 		m.register(blockEsp);
 		m.register(new KillSwitch());
@@ -76,6 +78,31 @@ public final class Modules {
 	public static SchematicBuilder builder;
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
+		c.register(new Command() {
+			public String name() { return "geodes"; }
+			public String usage() { return "geodes [count|reset]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				if (a.length > 0 && a[0].equalsIgnoreCase("reset")) {
+					AmethystDetector.resetNotified();
+					reply.accept("Geode notifications reset.");
+					return;
+				}
+				int n = 10;
+				if (a.length > 0) {
+					try {
+						n = Math.max(1, Math.min(50, Integer.parseInt(a[0])));
+					} catch (NumberFormatException e) {
+						reply.accept("Usage: " + usage());
+						return;
+					}
+				}
+				var list = AmethystDetector.geodes();
+				if (list.isEmpty()) reply.accept("No geodes in range (is AmethystDetector enabled?).");
+				for (var g : list.subList(0, Math.min(n, list.size()))) {
+					reply.accept(String.format("%.0f%% grown, %d clusters %d large %d medium %d small, %d open, ~%.1fh at %d %d %d", g.grownPercent(), g.cluster(), g.large(), g.medium(), g.small(), g.openSlots(), g.estHours(), g.center().x(), g.center().y(), g.center().z()));
+				}
+			}
+		});
 		c.register(new Command() {
 			public String name() { return "seed"; }
 			public String usage() { return "seed [number or text | clear | verify]"; }
