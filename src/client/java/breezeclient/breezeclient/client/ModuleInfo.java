@@ -40,6 +40,7 @@ public final class ModuleInfo {
 		m("WeatherNotifier", "Pop-up when it starts or stops raining or storming.");
 		m("CoordSnapper", "Bind to a key: copies the coordinates of the block you are looking at.");
 		m("SpawnerProtect", "When a stranger gets close, picks up nearby spawners then leaves the server.");
+		m("Baritone", "Built-in pathing with Baritone-style commands: .goto .mine .follow .explore .tunnel .thisway .surface .stop. This is its settings page; turning it off stops the current task.");
 		m("BlockESP", "Highlights any blocks you choose through walls. Edit the list in the settings or with .blockesp.");
 		m("OreFinder", "Highlights the ores the server has actually sent you, including ancient debris.");
 		m("SeedOres", "Predicts where ores and ancient debris generated using the world seed, even when anti-xray hides them. Set the seed in the Profiles tab.");

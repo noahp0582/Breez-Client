@@ -54,6 +54,7 @@ public final class Modules {
 		m.register(new SpawnerEsp());
 		m.register(new AmethystDetector());
 		m.register(new ClusterEsp());
+		m.register(new breezeclient.breezeclient.client.nav.NavModule());
 		m.register(new NewChunks());
 		m.register(new TrailFinder());
 		m.register(new StashFinder());
@@ -95,6 +96,7 @@ public final class Modules {
 		if (builder != null) builder.setEnabled(false);
 		for (var m : BreezClientClient.macros.all()) m.setEnabled(false);
 		Freecam.reset();
+		breezeclient.breezeclient.client.nav.Baritone.stop(null);
 	}
 
 	public static SpawnerPickup spawnerPickup;
@@ -102,6 +104,7 @@ public final class Modules {
 	public static SchematicBuilder builder;
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
+		breezeclient.breezeclient.client.nav.NavCommands.register(c);
 		c.register(new Command() {
 			public String name() { return "chunks"; }
 			public String usage() { return "chunks <stats|export|clear>"; }
