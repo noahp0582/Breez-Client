@@ -70,6 +70,19 @@ class SettingsTest {
 	}
 
 	@Test
+	void stringSettingRoundTripAndBadJson() {
+		StringSetting s = new StringSetting("s", "/home base");
+		s.set("/home x y");
+		StringSetting t = new StringSetting("s", "");
+		t.fromJson(s.toJson());
+		assertEquals("/home x y", t.get());
+		t.fromJson(new JsonPrimitive(42));
+		assertEquals("/home x y", t.get());
+		t.set(null);
+		assertEquals("", t.get());
+	}
+
+	@Test
 	void colorRoundTrip() {
 		ColorSetting s = new ColorSetting("c", 0xFF112233);
 		ColorSetting t = new ColorSetting("c", 0);

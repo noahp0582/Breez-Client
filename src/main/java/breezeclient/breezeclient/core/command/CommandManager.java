@@ -90,6 +90,8 @@ public class CommandManager {
 				r.accept("Expected hex color like ff8800");
 				return;
 			}
+		} else if (setting instanceof breezeclient.breezeclient.core.settings.StringSetting str) {
+			str.set(value);
 		} else if (setting instanceof StringListSetting l) {
 			String op = a[2].toLowerCase(Locale.ROOT);
 			if (op.equals("clear")) l.set(java.util.List.of());
