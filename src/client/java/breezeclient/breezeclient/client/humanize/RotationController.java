@@ -55,7 +55,7 @@ public final class RotationController {
 		if (p == null || target == null) return;
 		float q = Rotations.quantum(mc.options.sensitivity().get());
 		Rotation cur = new Rotation(p.getYRot(), p.getXRot());
-		Rotation next = Rotations.step(cur, target, maxStep, q, RNG);
+		Rotation next = Rotations.step(cur, target, (float) (maxStep * breezeclient.breezeclient.client.gui.GuiState.CLIENT.rotationSpeed.get()), q, RNG);
 		float dy = Math.abs(Rotations.wrapDegrees(target.yaw() - next.yaw()));
 		float dp = Math.abs(target.pitch() - next.pitch());
 		p.setYRot(next.yaw());

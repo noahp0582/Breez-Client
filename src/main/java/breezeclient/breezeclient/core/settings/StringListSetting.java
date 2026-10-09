@@ -6,12 +6,23 @@ import com.google.gson.JsonElement;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Case-insensitive set of strings, stored lowercase, insertion ordered. */
+/** Case-insensitive set of strings, stored lowercase, insertion ordered. {@link Kind} tells the GUI what to offer when adding. */
 public class StringListSetting extends Setting<List<String>> {
+	public enum Kind { PLAIN, BLOCK, ITEM, ENTITY }
+
+	private Kind kind = Kind.PLAIN;
+
 	public StringListSetting(String name, List<String> def) {
 		super(name, normalize(def));
 		this.value = new ArrayList<>(defaultValue());
 	}
+
+	public StringListSetting kind(Kind k) {
+		this.kind = k;
+		return this;
+	}
+
+	public Kind kind() { return kind; }
 
 	private static List<String> normalize(List<String> in) {
 		List<String> out = new ArrayList<>();
@@ -36,6 +47,8 @@ public class StringListSetting extends Setting<List<String>> {
 	@Override public void set(List<String> v) { value = normalize(v); }
 
 	@Override public void reset() { value = new ArrayList<>(defaultValue()); }
+
+	@Override public boolean isDefault() { return value.equals(defaultValue()); }
 
 	@Override
 	public JsonElement toJson() {

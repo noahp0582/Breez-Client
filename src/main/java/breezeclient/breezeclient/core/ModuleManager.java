@@ -71,11 +71,16 @@ public class ModuleManager {
 	public void onKeyState(int key, boolean isDown) {
 		if (key < 0) return;
 		if (!isDown) {
-			down.remove(key);
+			// releasing always ends hold-to-enable modules, even while input is blocked
+			if (down.remove(key)) for (Module m : modules) if (m.key() == key && m.toggleOnBindRelease()) m.setEnabled(false);
 			return;
 		}
 		boolean edge = down.add(key);
 		if (!edge || inputBlocked) return;
-		for (Module m : modules) if (m.key() == key) m.toggle();
+		for (Module m : modules) {
+			if (m.key() != key) continue;
+			if (m.toggleOnBindRelease()) m.setEnabled(true);
+			else m.toggle();
+		}
 	}
 }

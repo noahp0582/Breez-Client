@@ -12,6 +12,7 @@ import breezeclient.breezeclient.client.safety.Reconnect;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.client.world.ChunkScanner;
 import breezeclient.breezeclient.client.world.Waypoints;
+import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.ModuleManager;
 import breezeclient.breezeclient.core.command.CommandManager;
 import breezeclient.breezeclient.core.config.ConfigManager;
@@ -26,12 +27,23 @@ public class BreezClientClient implements ClientModInitializer {
 	public static CommandManager commands;
 	public static MacroStore macros;
 
+	private static void onToggled(Module m, boolean on) {
+		var mc = net.minecraft.client.Minecraft.getInstance();
+		if (mc.player == null) return;
+		if (m.chatFeedback() || breezeclient.breezeclient.client.gui.GuiState.CLIENT.announceAll.get()) {
+			breezeclient.breezeclient.client.gui.Toasts.show(m.name(), on ? "Enabled" : "Disabled", on ? 0xFF55FF55 : 0xFFFF5555);
+		}
+	}
+
 	@Override
 	public void onInitializeClient() {
+		breezeclient.breezeclient.client.gui.GuiState.load();
 		Modules.registerAll(MODULES);
 		var dir = FabricLoader.getInstance().getConfigDir().resolve("breez-client");
 		macros = new MacroStore(dir, MODULES);
 		macros.load();
+		for (var mod : MODULES.all()) ModuleInfo.apply(mod);
+		Module.setListener(BreezClientClient::onToggled);
 		config = new ConfigManager(dir, MODULES);
 		config.load();
 		commands = new CommandManager(".", MODULES);
@@ -51,6 +63,9 @@ public class BreezClientClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			if (mc.player != null) MODULES.tick();
 		});
-		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> config.save());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> {
+			config.save();
+			breezeclient.breezeclient.client.gui.GuiState.save();
+		});
 	}
 }

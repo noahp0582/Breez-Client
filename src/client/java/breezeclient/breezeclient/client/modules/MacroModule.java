@@ -31,6 +31,7 @@ public class MacroModule extends Module {
 	public MacroModule(String name, String script) {
 		super(name, Category.MISC);
 		this.script = script;
+		setDescription("Macro: " + script);
 	}
 
 	public String script() { return script; }

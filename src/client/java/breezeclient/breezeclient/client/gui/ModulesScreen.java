@@ -1,0 +1,119 @@
+package breezeclient.breezeclient.client.gui;
+
+import breezeclient.breezeclient.client.BreezClientClient;
+import breezeclient.breezeclient.core.Category;
+import breezeclient.breezeclient.core.Module;
+import breezeclient.breezeclient.core.gui.Fuzzy;
+import net.minecraft.client.Minecraft;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+/** The main screen: one window per category, click a module to toggle it, right click for its settings. */
+public class ModulesScreen extends BreezScreen {
+	private static final int WIN_W = 112;
+	private final Controls.TextBox search = new Controls.TextBox();
+	private final List<ModuleButton> buttons = new ArrayList<>();
+	private String lastQuery = "";
+
+	public ModulesScreen() {
+		super("Modules");
+		search.placeholder = "Search modules...";
+	}
+
+	static final class ModuleButton extends Widget {
+		final Module module;
+		boolean shown = true;
+
+		ModuleButton(Module m) { this.module = m; }
+
+		@Override
+		public int layout(Gfx g, int x, int y, int w) {
+			this.x = x;
+			this.y = y;
+			this.w = w;
+			this.h = shown ? Controls.ROW_H : 0;
+			return h;
+		}
+
+		@Override
+		public void render(Gfx g, int mx, int my) {
+			boolean hov = hit(mx, my);
+			if (module.enabled()) g.rrect(x, y, w, h, g.theme.accentFaded(hov ? 0.9 : 0.7));
+			else if (hov) g.rrect(x, y, w, h, g.hover());
+			String key = module.key() >= 0 ? Controls.KeyBind.keyName(module.key()) : "";
+			int keyW = key.isEmpty() ? 0 : g.width(key) + 6;
+			g.text(g.fit(module.name(), w - keyW - 6), x + 4, y + 2, module.enabled() ? g.text() : g.dim() | 0xFF000000);
+			if (!key.isEmpty()) g.text(key, x + w - g.width(key) - 3, y + 2, module.enabled() ? g.text() : g.dim());
+			if (hov) {
+				String d = module.description();
+				Widget.pendingTooltip = d.isBlank() ? module.name() : d;
+			}
+		}
+
+		@Override
+		public boolean click(int mx, int my, int button) {
+			if (!shown || !hit(mx, my)) return false;
+			if (button == 0) module.toggle();
+			else if (button == 1) Minecraft.getInstance().setScreen(new ModuleScreen(module));
+			return true;
+		}
+	}
+
+	@Override
+	protected void build() {
+		buttons.clear();
+		int x = 8, y = TAB_H + 8, rowH = 0;
+		for (Category c : Category.values()) {
+			List<Module> mods = new ArrayList<>();
+			for (Module m : BreezClientClient.MODULES.all()) if (m.category() == c) mods.add(m);
+			if (mods.isEmpty()) continue;
+			mods.sort(Comparator.comparing(Module::name, String.CASE_INSENSITIVE_ORDER));
+			if (x + WIN_W > vw && x > 8) {
+				x = 8;
+				y += rowH + 8;
+				rowH = 0;
+			}
+			Window w = new Window("cat:" + c.name(), c.label(), WIN_W, x, y);
+			w.maxH = Math.max(120, vh - 40);
+			for (Module m : mods) {
+				ModuleButton b = new ModuleButton(m);
+				buttons.add(b);
+				w.content.add(b);
+			}
+			w.content.gap = 1;
+			windows.add(w);
+			x += WIN_W + 8;
+			rowH = Math.max(rowH, Math.min(w.maxH, 40 + mods.size() * 14));
+		}
+	}
+
+	@Override
+	protected void tick(Gfx g) {
+		search.layout(g, tabsEnd(g) + 6, 2, Math.max(60, vw - tabsEnd(g) - 120));
+		search.h = 12;
+		if (!search.text.equals(lastQuery)) {
+			lastQuery = search.text;
+			for (ModuleButton b : buttons) {
+				String q = search.text.trim();
+				b.shown = q.isEmpty() || Fuzzy.score(q, b.module.name()) >= 0 || Fuzzy.score(q, b.module.description()) >= 400;
+			}
+		}
+	}
+
+	@Override
+	protected void renderOverlay(Gfx g, int mx, int my) { search.render(g, mx, my); }
+
+	@Override
+	protected boolean onTabBarClick(int mx, int my, int button) { return search.click(mx, my, button); }
+
+	@Override
+	public boolean keyPressed(net.minecraft.client.input.KeyEvent e) {
+		if (e.key() == 70 && (e.modifiers() & 2) != 0) { // ctrl+F focuses search
+			Widget.setFocus(search);
+			return true;
+		}
+		return super.keyPressed(e);
+	}
+}

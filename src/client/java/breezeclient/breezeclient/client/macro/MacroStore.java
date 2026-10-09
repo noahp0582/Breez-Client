@@ -66,6 +66,22 @@ public final class MacroStore {
 		return null;
 	}
 
+	/** Replaces a macro's script, keeping its key. @return an error message, or null on success. */
+	public String edit(String name, String script) {
+		MacroModule old = find(name);
+		if (old == null) return "No such macro.";
+		var parsed = MacroParser.parse(script);
+		if (!parsed.errors().isEmpty()) return String.join("; ", parsed.errors());
+		MacroModule m = new MacroModule(old.name(), script);
+		m.setKey(old.key());
+		m.setChatFeedback(old.chatFeedback());
+		macros.set(macros.indexOf(old), m);
+		modules.unregister(old);
+		modules.register(m);
+		save();
+		return null;
+	}
+
 	public boolean remove(String name) {
 		for (MacroModule m : macros) {
 			if (m.name().equalsIgnoreCase(name)) {

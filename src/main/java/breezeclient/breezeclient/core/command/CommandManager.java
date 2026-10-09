@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class CommandManager {
-	private final String prefix;
+	private String prefix;
 	private final ModuleManager modules;
 	private final List<Command> commands = new ArrayList<>();
 
@@ -48,6 +48,8 @@ public class CommandManager {
 	}
 
 	public String prefix() { return prefix; }
+
+	public void setPrefix(String p) { if (p != null && !p.isEmpty()) this.prefix = p; }
 
 	private static String key(String s) { return s.toLowerCase(Locale.ROOT).replace(" ", ""); }
 

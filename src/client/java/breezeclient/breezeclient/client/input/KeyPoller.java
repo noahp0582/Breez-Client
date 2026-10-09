@@ -1,6 +1,5 @@
 package breezeclient.breezeclient.client.input;
 
-import breezeclient.breezeclient.client.gui.ClickGui;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.ModuleManager;
 import breezeclient.breezeclient.core.config.ConfigManager;
@@ -28,8 +27,12 @@ public final class KeyPoller {
 		boolean inScreen = mc.screen != null;
 		modules.setInputBlocked(inScreen);
 
+		var cs = breezeclient.breezeclient.client.gui.GuiState.CLIENT;
+		breezeclient.breezeclient.core.humanize.ActionLimiter.setGlobalScale(cs.humanization.get());
+		if (breezeclient.breezeclient.client.BreezClientClient.commands != null) breezeclient.breezeclient.client.BreezClientClient.commands.setPrefix(cs.safePrefix());
+
 		boolean guiDown = InputConstants.isKeyDown(mc.getWindow(), GUI_KEY);
-		if (guiDown && !guiKeyWasDown && !inScreen && mc.player != null) mc.setScreen(new ClickGui(modules, config));
+		if (guiDown && !guiKeyWasDown && !inScreen && mc.player != null) breezeclient.breezeclient.client.gui.Tabs.openLast();
 		guiKeyWasDown = guiDown;
 
 		Set<Integer> keys = new HashSet<>();
