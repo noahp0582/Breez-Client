@@ -9,6 +9,8 @@ import breezeclient.breezeclient.client.modules.Freecam;
 import breezeclient.breezeclient.client.modules.Fullbright;
 import breezeclient.breezeclient.client.modules.CrystalMacro;
 import breezeclient.breezeclient.client.modules.KillSwitch;
+import breezeclient.breezeclient.client.modules.SchematicBuilder;
+import breezeclient.breezeclient.client.modules.SpawnerPickup;
 import breezeclient.breezeclient.client.modules.SusChunks;
 import breezeclient.breezeclient.client.modules.TotemMacro;
 import breezeclient.breezeclient.client.modules.OreFinder;
@@ -52,9 +54,75 @@ public final class Modules {
 		m.register(new SusChunks());
 		m.register(new CrystalMacro());
 		m.register(new TotemMacro());
+		spawnerPickup = new SpawnerPickup();
+		m.register(spawnerPickup);
+		builder = new SchematicBuilder();
+		m.register(builder);
 	}
 
+	public static SpawnerPickup spawnerPickup;
+	public static SchematicBuilder builder;
+
 	public static void registerCommands(CommandManager c, ConfigManager config) {
+		c.register(new Command() {
+			public String name() { return "spawner"; }
+			public String usage() { return "spawner <chest|start|stop>   (chest = set ender chest to the block you look at)"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var mc = net.minecraft.client.Minecraft.getInstance();
+				String sub = a.length == 0 ? "" : a[0].toLowerCase();
+				switch (sub) {
+					case "chest" -> {
+						if (mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult bh && mc.level != null
+							&& mc.level.getBlockState(bh.getBlockPos()).is(net.minecraft.world.level.block.Blocks.ENDER_CHEST)) {
+							spawnerPickup.setChest(bh.getBlockPos());
+							config.save();
+							reply.accept("Ender chest set to " + bh.getBlockPos().toShortString());
+						} else {
+							reply.accept("Look at an ender chest first.");
+						}
+					}
+					case "start" -> spawnerPickup.setEnabled(true);
+					case "stop" -> spawnerPickup.setEnabled(false);
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "build"; }
+			public String usage() { return "build <files|load <file>|origin [x y z]|start|pause|stop|status>"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var mc = net.minecraft.client.Minecraft.getInstance();
+				String sub = a.length == 0 ? "status" : a[0].toLowerCase();
+				switch (sub) {
+					case "files" -> {
+						var f = SchematicBuilder.files();
+						reply.accept(f.isEmpty() ? "No schematics in " + SchematicBuilder.dir() : String.join(", ", f));
+					}
+					case "load" -> {
+						if (a.length < 2) { reply.accept("Usage: " + usage()); return; }
+						String err = builder.load(String.join(" ", java.util.Arrays.copyOfRange(a, 1, a.length)));
+						reply.accept(err == null ? "Loaded. Set the origin with " + c.prefix() + "build origin, then " + c.prefix() + "build start." : "Could not load: " + err);
+					}
+					case "origin" -> {
+						if (a.length >= 4) {
+							try {
+								builder.setOrigin(new net.minecraft.core.BlockPos(Integer.parseInt(a[1]), Integer.parseInt(a[2]), Integer.parseInt(a[3])));
+							} catch (NumberFormatException e) {
+								reply.accept("Coordinates must be whole numbers.");
+								return;
+							}
+						} else if (mc.player != null) {
+							builder.setOrigin(mc.player.blockPosition());
+						}
+						reply.accept("Origin (minimum corner) set to " + (builder.origin() == null ? "?" : builder.origin().toShortString()));
+					}
+					case "start" -> builder.setEnabled(true);
+					case "pause", "stop" -> builder.setEnabled(false);
+					case "status" -> reply.accept(builder.status());
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
 		c.register(new Command() {
 			public String name() { return "sus"; }
 			public String usage() { return "sus [count|reset]"; }
