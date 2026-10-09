@@ -7,7 +7,10 @@ import breezeclient.breezeclient.client.modules.AutoReconnect;
 import breezeclient.breezeclient.client.modules.AutoRelog;
 import breezeclient.breezeclient.client.modules.Freecam;
 import breezeclient.breezeclient.client.modules.Fullbright;
+import breezeclient.breezeclient.client.modules.CrystalMacro;
 import breezeclient.breezeclient.client.modules.KillSwitch;
+import breezeclient.breezeclient.client.modules.SusChunks;
+import breezeclient.breezeclient.client.modules.TotemMacro;
 import breezeclient.breezeclient.client.modules.OreFinder;
 import breezeclient.breezeclient.client.modules.PlayerEsp;
 import breezeclient.breezeclient.client.modules.StaffList;
@@ -46,9 +49,73 @@ public final class Modules {
 		m.register(new Fullbright());
 		m.register(new PlayerEsp());
 		m.register(new OreFinder());
+		m.register(new SusChunks());
+		m.register(new CrystalMacro());
+		m.register(new TotemMacro());
 	}
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
+		c.register(new Command() {
+			public String name() { return "sus"; }
+			public String usage() { return "sus [count|reset]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				if (a.length > 0 && a[0].equalsIgnoreCase("reset")) {
+					SusChunks.resetAnnounced();
+					reply.accept("Sus chunk announcements reset.");
+					return;
+				}
+				int n = 10;
+				if (a.length > 0) {
+					try {
+						n = Math.max(1, Math.min(50, Integer.parseInt(a[0])));
+					} catch (NumberFormatException e) {
+						reply.accept("Usage: " + usage());
+						return;
+					}
+				}
+				var top = SusChunks.top(n);
+				if (top.isEmpty()) reply.accept("No suspicious chunks (is SusChunks enabled?).");
+				for (var r : top) {
+					var p = r.center();
+					reply.accept(String.format("score %.1f chunk (%d,%d) at %d %d %d", r.score(), r.chunkX(), r.chunkZ(), p.getX(), p.getY(), p.getZ()));
+				}
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "macro"; }
+			public String usage() { return "macro <add <name> <script>|remove <name>|list|show <name>|run <name>|stop>"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var store = BreezClientClient.macros;
+				String sub = a.length == 0 ? "list" : a[0].toLowerCase();
+				switch (sub) {
+					case "list" -> {
+						if (store.all().isEmpty()) reply.accept("No macros. Try: " + c.prefix() + "macro add hello say hi; wait 20; say there");
+						for (var m : store.all()) reply.accept(m.name() + (m.key() >= 0 ? " [key " + m.key() + "]" : ""));
+					}
+					case "add" -> {
+						if (a.length < 3) { reply.accept("Usage: " + usage()); return; }
+						String err = store.add(a[1], String.join(" ", java.util.Arrays.copyOfRange(a, 2, a.length)));
+						reply.accept(err == null ? "Saved. Bind with " + c.prefix() + "bind " + a[1] + " <key>" : err);
+					}
+					case "remove" -> reply.accept(a.length > 1 && store.remove(a[1]) ? "Removed." : "No such macro.");
+					case "show" -> {
+						var m = a.length > 1 ? store.find(a[1]) : null;
+						reply.accept(m == null ? "No such macro." : m.script());
+					}
+					case "run" -> {
+						var m = a.length > 1 ? store.find(a[1]) : null;
+						if (m == null) { reply.accept("No such macro."); return; }
+						m.setEnabled(false);
+						m.setEnabled(true);
+					}
+					case "stop" -> {
+						for (var m : store.all()) m.setEnabled(false);
+						reply.accept("Stopped.");
+					}
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
 		c.register(new Command() {
 			public String name() { return "staff"; }
 			public String usage() { return "staff <add|remove|list|online|import <file>|clear> [name]"; }

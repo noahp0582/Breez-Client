@@ -17,6 +17,11 @@ public class ModuleManager {
 
 	public void register(Module m) { modules.add(m); }
 
+	public void unregister(Module m) {
+		m.setEnabled(false);
+		modules.remove(m);
+	}
+
 	public List<Module> all() { return Collections.unmodifiableList(modules); }
 
 	public Module get(String name) {

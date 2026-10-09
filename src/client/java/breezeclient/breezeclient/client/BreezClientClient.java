@@ -4,6 +4,7 @@ import breezeclient.breezeclient.client.chat.ChatCommands;
 import breezeclient.breezeclient.client.hud.HudRenderer;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.input.KeyPoller;
+import breezeclient.breezeclient.client.macro.MacroStore;
 import breezeclient.breezeclient.client.modules.KillSwitch;
 import breezeclient.breezeclient.client.render.RenderHooks;
 import breezeclient.breezeclient.client.safety.Reconnect;
@@ -22,11 +23,15 @@ public class BreezClientClient implements ClientModInitializer {
 	public static final ModuleManager MODULES = new ModuleManager();
 	public static ConfigManager config;
 	public static CommandManager commands;
+	public static MacroStore macros;
 
 	@Override
 	public void onInitializeClient() {
 		Modules.registerAll(MODULES);
-		config = new ConfigManager(FabricLoader.getInstance().getConfigDir().resolve("breez-client"), MODULES);
+		var dir = FabricLoader.getInstance().getConfigDir().resolve("breez-client");
+		macros = new MacroStore(dir, MODULES);
+		macros.load();
+		config = new ConfigManager(dir, MODULES);
 		config.load();
 		commands = new CommandManager(".", MODULES);
 		Modules.registerCommands(commands, config);

@@ -35,6 +35,9 @@ public final class ScanTarget {
 
 	public Collection<List<BlockPos>> chunks() { return hits.values(); }
 
+	/** Live view keyed by {@link net.minecraft.world.level.ChunkPos#toLong()}. */
+	public Map<Long, List<BlockPos>> hitsByChunk() { return hits; }
+
 	public int count() {
 		int n = 0;
 		for (List<BlockPos> l : hits.values()) n += l.size();
