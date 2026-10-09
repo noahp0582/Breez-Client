@@ -4,7 +4,9 @@ import breezeclient.breezeclient.client.chat.ChatCommands;
 import breezeclient.breezeclient.client.hud.HudRenderer;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.input.KeyPoller;
+import breezeclient.breezeclient.client.modules.KillSwitch;
 import breezeclient.breezeclient.client.render.RenderHooks;
+import breezeclient.breezeclient.client.safety.Reconnect;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.client.world.ChunkScanner;
 import breezeclient.breezeclient.client.world.Waypoints;
@@ -30,6 +32,8 @@ public class BreezClientClient implements ClientModInitializer {
 		Modules.registerCommands(commands, config);
 
 		Waypoints.init();
+		Reconnect.register();
+		KillSwitch.registerEvents();
 		ChunkScanner.register();
 		Session.register(config);
 		ChatCommands.register(commands);

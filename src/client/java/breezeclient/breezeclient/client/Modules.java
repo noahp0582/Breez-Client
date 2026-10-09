@@ -1,6 +1,13 @@
 package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.modules.AmethystDetector;
+import breezeclient.breezeclient.client.modules.AntiAfk;
+import breezeclient.breezeclient.client.modules.AutoEat;
+import breezeclient.breezeclient.client.modules.AutoReconnect;
+import breezeclient.breezeclient.client.modules.AutoRelog;
+import breezeclient.breezeclient.client.modules.KillSwitch;
+import breezeclient.breezeclient.client.modules.StaffList;
+import breezeclient.breezeclient.client.safety.StaffTracker;
 import breezeclient.breezeclient.client.modules.CustomBlockEsp;
 import breezeclient.breezeclient.client.modules.SpawnerEsp;
 import breezeclient.breezeclient.client.modules.StorageEsp;
@@ -25,9 +32,62 @@ public final class Modules {
 		m.register(new AmethystDetector());
 		blockEsp = new CustomBlockEsp();
 		m.register(blockEsp);
+		m.register(new KillSwitch());
+		m.register(new StaffList());
+		m.register(new AutoRelog());
+		m.register(new AutoReconnect());
+		m.register(new AntiAfk());
+		m.register(new AutoEat());
 	}
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
+		c.register(new Command() {
+			public String name() { return "staff"; }
+			public String usage() { return "staff <add|remove|list|online|import <file>|clear> [name]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var profile = StaffTracker.profile();
+				String sub = a.length == 0 ? "list" : a[0].toLowerCase();
+				switch (sub) {
+					case "list" -> reply.accept(profile.staff().isEmpty() ? "Staff list is empty." : "Staff: " + String.join(", ", profile.staff()));
+					case "online" -> {
+						var on = StaffTracker.onlineStaff();
+						reply.accept(on.isEmpty() ? "No listed staff in the tab list." : "Online: " + String.join(", ", on));
+					}
+					case "add" -> {
+						if (a.length < 2) { reply.accept("Usage: " + usage()); return; }
+						int n = 0;
+						for (int i = 1; i < a.length; i++) if (profile.addStaff(a[i])) n++;
+						reply.accept("Added " + n);
+						config.save();
+					}
+					case "remove" -> {
+						if (a.length < 2) { reply.accept("Usage: " + usage()); return; }
+						reply.accept(profile.removeStaff(a[1]) ? "Removed " + a[1] : "Not in list");
+						config.save();
+					}
+					case "clear" -> {
+						for (String s : new java.util.ArrayList<>(profile.staff())) profile.removeStaff(s);
+						reply.accept("Cleared.");
+						config.save();
+					}
+					case "import" -> {
+						if (a.length < 2) { reply.accept("Usage: staff import <file with one name per line>"); return; }
+						try {
+							int n = 0;
+							for (String line : java.nio.file.Files.readAllLines(java.nio.file.Path.of(String.join(" ", java.util.Arrays.copyOfRange(a, 1, a.length))))) {
+								String name = line.trim();
+								if (!name.isEmpty() && !name.startsWith("#") && profile.addStaff(name)) n++;
+							}
+							reply.accept("Imported " + n + " names.");
+							config.save();
+						} catch (java.io.IOException e) {
+							reply.accept("Could not read file: " + e.getMessage());
+						}
+					}
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
 		c.register(new Command() {
 			public String name() { return "blockesp"; }
 			public String usage() { return "blockesp <add|remove|list> [block id]"; }

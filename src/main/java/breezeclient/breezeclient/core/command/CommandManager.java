@@ -2,6 +2,12 @@ package breezeclient.breezeclient.core.command;
 
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.ModuleManager;
+import breezeclient.breezeclient.core.settings.BoolSetting;
+import breezeclient.breezeclient.core.settings.ColorSetting;
+import breezeclient.breezeclient.core.settings.EnumSetting;
+import breezeclient.breezeclient.core.settings.NumberSetting;
+import breezeclient.breezeclient.core.settings.Setting;
+import breezeclient.breezeclient.core.settings.StringListSetting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +39,7 @@ public class CommandManager {
 			m.setKey(key);
 			r.accept(m.name() + (key < 0 ? " unbound" : " bound to " + a[1].toUpperCase(Locale.ROOT)));
 		}));
+		register(new Simple("set", "set <module> [setting] [value|add x|remove x|clear]", (a, r) -> handleSet(a, r)));
 		register(new Simple("modules", "modules", (a, r) -> r.accept(
 			modules.all().stream().map(m -> (m.enabled() ? "+" : "-") + m.name()).collect(Collectors.joining(", ")))));
 		register(new Simple("help", "help", (a, r) -> {
@@ -41,6 +48,62 @@ public class CommandManager {
 	}
 
 	public String prefix() { return prefix; }
+
+	private static String key(String s) { return s.toLowerCase(Locale.ROOT).replace(" ", ""); }
+
+	private void handleSet(String[] a, Consumer<String> r) {
+		if (a.length < 1) { r.accept("Usage: " + prefix + "set <module> [setting] [value]"); return; }
+		Module m = modules.get(a[0]);
+		if (m == null) { r.accept("No such module: " + a[0]); return; }
+		if (a.length == 1) {
+			for (Setting<?> s : m.settings()) r.accept(key(s.name()) + " = " + s.toJson());
+			return;
+		}
+		Setting<?> setting = null;
+		for (Setting<?> s : m.settings()) if (key(s.name()).equals(key(a[1]))) setting = s;
+		if (setting == null) { r.accept("No such setting: " + a[1]); return; }
+		if (a.length == 2) { r.accept(key(setting.name()) + " = " + setting.toJson()); return; }
+		String value = String.join(" ", java.util.Arrays.copyOfRange(a, 2, a.length));
+		if (setting instanceof BoolSetting b) {
+			String v = a[2].toLowerCase(Locale.ROOT);
+			switch (v) {
+				case "true", "on", "yes", "1" -> b.set(true);
+				case "false", "off", "no", "0" -> b.set(false);
+				case "toggle" -> b.toggle();
+				default -> { r.accept("Expected on/off"); return; }
+			}
+		} else if (setting instanceof NumberSetting n) {
+			try {
+				n.set(Double.parseDouble(a[2]));
+			} catch (NumberFormatException e) {
+				r.accept("Not a number: " + a[2]);
+				return;
+			}
+		} else if (setting instanceof EnumSetting<?> e) {
+			e.fromJson(new com.google.gson.JsonPrimitive(a[2]));
+		} else if (setting instanceof ColorSetting c) {
+			String hex = a[2].replace("#", "").replace("0x", "");
+			try {
+				long v = Long.parseLong(hex, 16);
+				c.set((int) (hex.length() <= 6 ? (0xFF000000L | v) : v));
+			} catch (NumberFormatException ex) {
+				r.accept("Expected hex color like ff8800");
+				return;
+			}
+		} else if (setting instanceof StringListSetting l) {
+			String op = a[2].toLowerCase(Locale.ROOT);
+			if (op.equals("clear")) l.set(java.util.List.of());
+			else if (op.equals("list")) { r.accept(String.join(", ", l.get())); return; }
+			else if (a.length < 4) { r.accept("Usage: " + prefix + "set " + m.name() + " " + key(l.name()) + " add|remove|clear|list [value]"); return; }
+			else if (op.equals("add")) l.add(a[3]);
+			else if (op.equals("remove")) l.remove(a[3]);
+			else { r.accept("Expected add/remove/clear/list"); return; }
+		} else {
+			r.accept("Setting cannot be edited here");
+			return;
+		}
+		r.accept(m.name() + "." + key(setting.name()) + " = " + setting.toJson());
+	}
 
 	public void register(Command c) { commands.add(c); }
 
