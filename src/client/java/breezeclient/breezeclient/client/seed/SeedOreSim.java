@@ -66,6 +66,8 @@ public final class SeedOreSim {
 	private static final Map<ResourceKey<Level>, Dim> DIMS = new HashMap<>();
 	private static final Map<ResourceKey<Biome>, Holder<Biome>> BIOME_CACHE = new HashMap<>();
 
+	public static final long[] STATS = new long[8]; // positions, heightFail, veins, claims, biomeNull, chunks, featuresRun, noBiomes
+
 	private SeedOreSim() {}
 
 	/** Minecraft's rule for the seed field: a number is used as-is, any other text is hashed. */
@@ -115,7 +117,19 @@ public final class SeedOreSim {
 	}
 
 	/** The block that was at this spot when the ore feature ran: ores already in the world stand for their host rock. */
+	/** Vegetation, snow and similar decoration that is generated after ores; it was air when the ore features ran. */
+	private static boolean laterDecoration(BlockState s) {
+		if (s.isAir() || !s.getFluidState().isEmpty()) return false;
+		return s.is(BlockTags.LEAVES) || s.is(BlockTags.FLOWERS) || s.is(BlockTags.SAPLINGS) || s.is(BlockTags.REPLACEABLE) || s.is(BlockTags.LOGS)
+			|| s.is(Blocks.SNOW) || s.is(Blocks.MOSS_CARPET) || s.is(Blocks.GLOW_LICHEN) || s.is(Blocks.SPORE_BLOSSOM) || s.is(Blocks.HANGING_ROOTS)
+			|| s.is(Blocks.CAVE_VINES) || s.is(Blocks.CAVE_VINES_PLANT) || s.is(Blocks.BIG_DRIPLEAF) || s.is(Blocks.BIG_DRIPLEAF_STEM) || s.is(Blocks.SMALL_DRIPLEAF)
+			|| s.is(Blocks.BROWN_MUSHROOM) || s.is(Blocks.RED_MUSHROOM) || s.is(Blocks.PUMPKIN) || s.is(Blocks.MELON) || s.is(Blocks.SUGAR_CANE) || s.is(Blocks.CACTUS)
+			|| s.is(Blocks.BAMBOO) || s.is(Blocks.BAMBOO_SAPLING) || s.is(Blocks.SWEET_BERRY_BUSH) || s.is(Blocks.AZALEA) || s.is(Blocks.FLOWERING_AZALEA)
+			|| s.is(Blocks.POINTED_DRIPSTONE) || s.is(Blocks.SCULK_VEIN);
+	}
+
 	private static BlockState atGeneration(BlockState s) {
+		if (laterDecoration(s)) return Blocks.AIR.defaultBlockState();
 		if (!isOre(s)) return s;
 		if (s.is(BlockTags.DEEPSLATE_ORE_REPLACEABLES) || s.is(Blocks.DEEPSLATE_COAL_ORE) || s.is(Blocks.DEEPSLATE_IRON_ORE) || s.is(Blocks.DEEPSLATE_GOLD_ORE)
 			|| s.is(Blocks.DEEPSLATE_DIAMOND_ORE) || s.is(Blocks.DEEPSLATE_REDSTONE_ORE) || s.is(Blocks.DEEPSLATE_LAPIS_ORE)
@@ -153,6 +167,8 @@ public final class SeedOreSim {
 		WorldgenRandom random = new WorldgenRandom(new XoroshiroRandomSource(0L));
 		long decoration = random.setDecorationSeed(seed, ox, oz);
 		Set<Holder<Biome>> biomes = biomesAround(level, cp);
+		STATS[5]++;
+		if (biomes.isEmpty()) STATS[7]++;
 		WorldGenLevel proxy = proxy(level, seed);
 		Run run = new Run(level, random);
 
@@ -170,6 +186,7 @@ public final class SeedOreSim {
 				ConfiguredFeature<?, ?> cf = pf.feature().value();
 				if (cf.feature() != Feature.ORE && cf.feature() != Feature.SCATTERED_ORE) continue;
 				random.setFeatureSeed(decoration, index, step);
+				STATS[6]++;
 				try {
 					place(run, dim, proxy, pf, cf, origin);
 				} catch (RuntimeException e) {
@@ -212,9 +229,47 @@ public final class SeedOreSim {
 		OreConfiguration cfg = (OreConfiguration) cf.config();
 		boolean scattered = cf.feature() == Feature.SCATTERED_ORE;
 		stream.forEach(p -> {
+			STATS[0]++;
 			if (scattered) placeScattered(run, cfg, p);
 			else placeVein(run, cfg, p);
 		});
+	}
+
+	/** Height of the first free block above the highest motion-blocking block of a column (scanned from loaded chunk data, because the client does not reliably prime its own heightmaps). */
+	private static final Map<Long, int[]> HEIGHTS = new HashMap<>();
+
+	public static void clearCaches() { HEIGHTS.clear(); }
+
+	static int height(ClientLevel level, int x, int z) {
+		long key = ChunkPos.asLong(x >> 4, z >> 4);
+		int[] cols = HEIGHTS.get(key);
+		if (cols == null) {
+			LevelChunk c = level.getChunkSource().getChunk(x >> 4, z >> 4, false);
+			if (c == null) return level.getMinY();
+			if (HEIGHTS.size() > 4000) HEIGHTS.clear();
+			cols = new int[256];
+			LevelChunkSection[] sections = c.getSections();
+			int minSection = c.getMinY() >> 4;
+			for (int cx = 0; cx < 16; cx++) {
+				for (int cz = 0; cz < 16; cz++) {
+					int h = c.getMinY();
+					outer:
+					for (int i = sections.length - 1; i >= 0; i--) {
+						if (sections[i].hasOnlyAir()) continue;
+						for (int y = 15; y >= 0; y--) {
+							BlockState st = sections[i].getBlockState(cx, y, cz);
+							if (st.blocksMotion() || !st.getFluidState().isEmpty()) {
+								h = ((minSection + i) << 4) + y + 1;
+								break outer;
+							}
+						}
+					}
+					cols[cx + cz * 16] = h;
+				}
+			}
+			HEIGHTS.put(key, cols);
+		}
+		return cols[(x & 15) + (z & 15) * 16];
 	}
 
 	/** Port of ScatteredOreFeature.place. */
@@ -257,12 +312,14 @@ public final class SeedOreSim {
 		int h = 2 * (2 + i);
 		for (int s = minX; s <= minX + w; s++) {
 			for (int t = minZ; t <= minZ + w; t++) {
-				if (minY <= run.level.getHeight(Heightmap.Types.OCEAN_FLOOR, s, t)) {
+				if (minY <= height(run.level, s, t)) {
+					STATS[2]++;
 					doPlace(run, cfg, x1, x2, z1, z2, y1, y2, minX, minY, minZ, w, h);
 					return;
 				}
 			}
 		}
+		STATS[1]++;
 	}
 
 	private static void doPlace(Run run, OreConfiguration cfg, double d, double e, double f, double g, double h, double i, int j, int k, int l, int m, int n) {
@@ -349,13 +406,14 @@ public final class SeedOreSim {
 				case "getMaxY": return level.getMaxY();
 				case "getHeight":
 					if (argc == 0) return level.getHeight();
-					return level.getHeight((Heightmap.Types) args[0], (Integer) args[1], (Integer) args[2]);
+					return height(level, (Integer) args[1], (Integer) args[2]);
 				case "getMinSectionY": return level.getMinY() >> 4;
 				case "getMaxSectionY": return (level.getMaxY() - 1) >> 4;
 				case "getSectionsCount": return level.getSectionsCount();
 				case "isOutsideBuildHeight": return args[0] instanceof Integer y ? level.isOutsideBuildHeight(y) : level.isOutsideBuildHeight((BlockPos) args[0]);
 				case "getBiome": {
 					Holder<Biome> h = ours(level.getBiome((BlockPos) args[0]));
+					if (h == null) STATS[4]++;
 					return h != null ? h : level.getBiome((BlockPos) args[0]);
 				}
 				case "getBlockState": return atGeneration(level.getBlockState((BlockPos) args[0]));

@@ -148,6 +148,8 @@ public class SeedOres extends Module {
 		Map<OreKind, int[]> stats = new EnumMap<>(OreKind.class); // {predicted, predictedAndActual, actual, actualAndPredicted}
 		for (OreKind k : OreKind.values()) stats.put(k, new int[4]);
 		Map<BlockPos, BlockState> predicted = new HashMap<>();
+		int[][] missByY = new int[OreKind.values().length][14];
+		int[][] hitByY = new int[OreKind.values().length][14];
 		for (var m : sims.values()) predicted.putAll(m);
 		int chunks = 0;
 		for (long key : sims.keySet()) {
@@ -165,7 +167,9 @@ public class SeedOres extends Module {
 					BlockPos p = new BlockPos(c.getPos().getMinBlockX() + x, ((minSection + i) << 4) + y, c.getPos().getMinBlockZ() + z);
 					stats.get(k)[2]++;
 					BlockState pr = predicted.get(p);
-					if (pr != null && pr.getBlock() == s.getBlock()) stats.get(k)[3]++;
+					int bucket = Math.max(0, Math.min(13, (p.getY() + 64) / 32));
+					if (pr != null && pr.getBlock() == s.getBlock()) { stats.get(k)[3]++; hitByY[k.ordinal()][bucket]++; }
+					else missByY[k.ordinal()][bucket]++;
 				}
 			}
 		}
@@ -178,12 +182,18 @@ public class SeedOres extends Module {
 			BlockState actual = level.getBlockState(en.getKey());
 			if (actual.getBlock() == en.getValue().getBlock()) stats.get(k)[1]++;
 		}
-		StringBuilder sb = new StringBuilder("SeedOres check over " + chunks + " chunks (predicted: matched/total, actual: found/total):\n");
+		var st = SeedOreSim.STATS;
+		StringBuilder sb = new StringBuilder("SIM positions=" + st[0] + " heightFail=" + st[1] + " veins=" + st[2] + " biomeNull=" + st[4] + " chunks=" + st[5] + " featuresRun=" + st[6] + " noBiomes=" + st[7] + "\n" + "SeedOres check over " + chunks + " chunks (predicted: matched/total, actual: found/total):\n");
 		for (OreKind k : OreKind.values()) {
 			int[] s = stats.get(k);
 			if (s[0] == 0 && s[2] == 0) continue;
 			sb.append(String.format("  %-15s predicted %d/%d (%.0f%%)  actual %d/%d (%.0f%%)%n", k.label, s[1], s[0], s[0] == 0 ? 0.0 : 100.0 * s[1] / s[0],
 				s[3], s[2], s[2] == 0 ? 0.0 : 100.0 * s[3] / s[2]));
+		}
+		for (OreKind k : new OreKind[] {OreKind.DIAMOND, OreKind.IRON, OreKind.COAL}) {
+			sb.append("  " + k.label + " by Y (bucket = 32 blocks from -64): hit/miss\n   ");
+			for (int b = 0; b < 14; b++) sb.append(String.format(" %d:%d/%d", b, hitByY[k.ordinal()][b], missByY[k.ordinal()][b]));
+			sb.append('\n');
 		}
 		return sb.toString();
 	}
