@@ -14,6 +14,10 @@ public class ModuleManager {
 	private final List<Module> modules = new ArrayList<>();
 	private final Set<Integer> down = new HashSet<>();
 	private boolean inputBlocked;
+	private static int crashes;
+
+	/** Number of module exceptions caught so far (used by the self-test). */
+	public static int crashCount() { return crashes; }
 
 	public void register(Module m) { modules.add(m); }
 
@@ -52,6 +56,7 @@ public class ModuleManager {
 	}
 
 	private void fail(Module m, Throwable t) {
+		crashes++;
 		LOG.log(Level.SEVERE, "Module " + m.name() + " crashed and was disabled", t);
 		try {
 			m.setEnabled(false);

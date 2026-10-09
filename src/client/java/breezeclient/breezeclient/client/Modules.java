@@ -10,6 +10,7 @@ import breezeclient.breezeclient.client.modules.Fullbright;
 import breezeclient.breezeclient.client.modules.CrystalMacro;
 import breezeclient.breezeclient.client.modules.KillSwitch;
 import breezeclient.breezeclient.client.modules.SchematicBuilder;
+import breezeclient.breezeclient.client.modules.SeedOres;
 import breezeclient.breezeclient.client.modules.SpawnerPickup;
 import breezeclient.breezeclient.client.modules.SusChunks;
 import breezeclient.breezeclient.client.modules.TotemMacro;
@@ -56,14 +57,41 @@ public final class Modules {
 		m.register(new TotemMacro());
 		spawnerPickup = new SpawnerPickup();
 		m.register(spawnerPickup);
+		seedOres = new SeedOres();
+		m.register(seedOres);
 		builder = new SchematicBuilder();
 		m.register(builder);
 	}
 
 	public static SpawnerPickup spawnerPickup;
+	public static SeedOres seedOres;
 	public static SchematicBuilder builder;
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
+		c.register(new Command() {
+			public String name() { return "seed"; }
+			public String usage() { return "seed [number or text | clear | verify]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var profile = StaffTracker.profile();
+				if (a.length == 0) {
+					reply.accept(profile.seed() == null ? "No seed set for this server. Use " + c.prefix() + "seed <value>." : "Seed: " + profile.seed());
+					return;
+				}
+				if (a[0].equalsIgnoreCase("verify")) {
+					for (String line : seedOres.verify().split("\n")) reply.accept(line);
+					return;
+				}
+				if (a[0].equalsIgnoreCase("clear")) {
+					profile.setSeed(null);
+					config.save();
+					reply.accept("Seed cleared.");
+					return;
+				}
+				profile.setSeed(String.join(" ", a));
+				config.save();
+				reply.accept("Seed set. Enable SeedOres to see predicted ores.");
+			}
+		});
 		c.register(new Command() {
 			public String name() { return "spawner"; }
 			public String usage() { return "spawner <chest|start|stop>   (chest = set ender chest to the block you look at)"; }

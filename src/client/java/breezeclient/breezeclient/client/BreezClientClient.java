@@ -1,6 +1,7 @@
 package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.chat.ChatCommands;
+import breezeclient.breezeclient.client.dev.SelfTest;
 import breezeclient.breezeclient.client.hud.HudRenderer;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.input.KeyPoller;
@@ -37,6 +38,7 @@ public class BreezClientClient implements ClientModInitializer {
 		Modules.registerCommands(commands, config);
 
 		Waypoints.init();
+		SelfTest.register();
 		Reconnect.register();
 		KillSwitch.registerEvents();
 		ChunkScanner.register();
