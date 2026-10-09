@@ -64,19 +64,24 @@ public class ModulesScreen extends BreezScreen {
 	@Override
 	protected void build() {
 		buttons.clear();
-		int x = 8, y = TAB_H + 8, rowH = 0;
+		// Default layout: columns; each window goes under the shortest column and scrolls when it would run off the screen.
+		int colW = WIN_W + 8;
+		int cols = Math.max(1, (vw - 8) / colW);
+		int[] colY = new int[cols];
+		java.util.Arrays.fill(colY, TAB_H + 8);
 		for (Category c : Category.values()) {
 			List<Module> mods = new ArrayList<>();
 			for (Module m : BreezClientClient.MODULES.all()) if (m.category() == c) mods.add(m);
 			if (mods.isEmpty()) continue;
 			mods.sort(Comparator.comparing(Module::name, String.CASE_INSENSITIVE_ORDER));
-			if (x + WIN_W > vw && x > 8) {
-				x = 8;
-				y += rowH + 8;
-				rowH = 0;
-			}
+			int est = Window.HEADER + Window.PAD * 2 + mods.size() * 14;
+			int col = 0;
+			for (int i = 1; i < cols; i++) if (colY[i] < colY[col]) col = i;
+			int x = 8 + col * colW, y = colY[col];
+			int room = Math.max(90, vh - 8 - y);
 			Window w = new Window("cat:" + c.name(), c.label(), WIN_W, x, y);
-			w.maxH = Math.max(120, vh - 40);
+			w.maxH = Math.min(est, Math.max(room, 90));
+			if (GuiState.WINDOWS.containsKey("cat:" + c.name()) && GuiState.WINDOWS.get("cat:" + c.name())[1] != y) w.maxH = Math.max(120, vh - 40);
 			for (Module m : mods) {
 				ModuleButton b = new ModuleButton(m);
 				buttons.add(b);
@@ -84,8 +89,7 @@ public class ModulesScreen extends BreezScreen {
 			}
 			w.content.gap = 1;
 			windows.add(w);
-			x += WIN_W + 8;
-			rowH = Math.max(rowH, Math.min(w.maxH, 40 + mods.size() * 14));
+			colY[col] += w.maxH + 8;
 		}
 	}
 

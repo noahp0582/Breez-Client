@@ -51,6 +51,34 @@ Drop the jar from `build/libs` (not the `-sources` one) into `.minecraft/mods` t
 | SchematicBuilder | Builds `.litematic`, `.schem` and `.nbt` files layer by layer in straight sweeps. `.build files`, `.build load <file>`, `.build origin`, `.build start`. |
 | Macros | `.macro add <name> <script>`; script steps: `say`, `wait`, `slot`, `use`, `attack`, `look`, `turn`, `sneak`, `jump`, `loop`. Bind with `.bind`. |
 
+### The GUI (Right Shift)
+
+Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD) over draggable, scrollable windows.
+Left click a module toggles it, right click opens its settings page (grouped, collapsible sections, tooltips, per-setting reset,
+color picker, list editors with block/item search, key bind, hold-to-enable). `Ctrl+F` focuses the module search.
+- **GUI tab:** accent/text/background colors, opacity, scale, rounded corners, animation speed, HUD module-list side, toast settings, reset layout.
+- **Config tab:** command prefix, humanization delay scale, camera turn speed, announce-all-toggles.
+- **Profiles tab:** per-server world seed and staff list. **Macros tab:** create, edit, bind, run macros. **HUD tab:** drag HUD elements.
+- Toasts (pop-ups) replace chat spam; every module can announce toggles with its own "Chat feedback" switch.
+The look and layout are modelled on Meteor Client's, but all code here is original (Meteor is GPL-3.0).
+
+### More modules
+
+| Module | What it does |
+|---|---|
+| AmethystDetector | Groups budding amethyst into geodes, measures how grown their crystals are (small/medium/large/cluster), shows `Geode 94% grown` labels with an age estimate, and sends a **toast when a geode reaches the threshold** (default 90% of growing crystals are full clusters). `.geodes` lists them. |
+| ClusterESP | Marks the open slots next to budding amethyst, i.e. geodes that are not finished. |
+| NewChunks / TrailFinder | Detects new vs old chunks (fluid flow right after load), draws them, shows a chunk minimap on the HUD, saves them per server and dimension (`.chunks stats|export|clear`), and points to old-chunk trail heads next to unexplored chunks. |
+| StashFinder | Scores chunks by preset (storage, redstone, decoration, spawners), skips natural dungeons, toasts and logs each find to `stashes.csv`. `.stash list|export|clear`. |
+| BlockEntityESP / EntityStorageESP | Chests, spawners, signs (with text), beds and more straight from chunk data; chest boats and minecarts, pack animals with chests, item frames, armor stands. |
+| PortalESP, HoleESP, MobESP, SpawnerNametags, WeatherNotifier, CoordSnapper | Portals; 1x1 holes (green = bedrock/obsidian); mobs; spawner type + 16-block ring; rain/storm toasts; copy looked-at coordinates. |
+| SpawnerProtect | A stranger comes close: picks up nearby spawners, then leaves the server. |
+| Baritone | Built-in pathing: `.goto <x y z \| x z \| waypoint \| player>`, `.mine <block...> [n]`, `.follow <player>`, `.explore`, `.tunnel [n] [dir]`, `.thisway [n]`, `.surface`, `.stop/.pause/.resume`. Walks, sprint-jumps gaps, breaks through blocks, digs down, pillars and bridges with your cheap blocks; never breaks containers, spawners or anything on its protected list. |
+| AutoWalk, AutoClicker, AutoTPA, FastUse, FreeLook, Zoom, CustomFOV, CustomCrosshair, JumpCircles, HitParticles, NameProtect, SkinProtect | Utility and visual modules. |
+| AimAssist, Triggerbot, HoverTotem, AnchorMacro, DoubleAnchor, MaceSwap, MaceBomber, ShieldBreaker, ElytraSwap | Combat helpers. Every attack goes through one safety gate that refuses targets a vanilla server kicks you for (yourself, items, XP orbs, arrows). |
+
+Not built on purpose: FakePay, FakeStats and GambleRigger (they exist to fake payments or rig gambles against other players).
+
 Waypoints: `.waypoints list|add|remove|clear`. Finds from SpawnerESP, AmethystDetector and SusChunks can save waypoints automatically.
 
 ## About "undetectable"
