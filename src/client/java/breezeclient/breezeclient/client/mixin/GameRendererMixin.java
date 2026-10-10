@@ -19,4 +19,10 @@ public abstract class GameRendererMixin {
 		if (useFovSetting) breezeclient.breezeclient.client.modules.NameTags.noteFov(out);
 		if (out != fov) cir.setReturnValue(out);
 	}
+
+	/** AutoLog counts your own totem pops (the game shows the totem animation only for you). */
+	@Inject(method = "displayItemActivation", at = @At("HEAD"))
+	private void breez$totem(net.minecraft.world.item.ItemStack stack, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+		if (stack.is(net.minecraft.world.item.Items.TOTEM_OF_UNDYING)) breezeclient.breezeclient.client.modules.AutoLog.onTotemPop();
+	}
 }

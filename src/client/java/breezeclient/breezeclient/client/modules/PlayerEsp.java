@@ -41,7 +41,7 @@ public class PlayerEsp extends Module {
 			double d = p.distanceTo(mc.player);
 			if (d > range.get()) continue;
 			String name = StaffTracker.nameOf(p);
-			int c = profile.isStaff(name) ? staffColor.get() : color.get();
+			int c = profile.isStaff(name) ? staffColor.get() : Friends.is(name) ? Friends.COLOR : color.get();
 			AABB b = p.getBoundingBox();
 			if (boxes.get()) f.drawBox(b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ, c);
 			if (tracers.get()) f.drawLine(start.x, start.y, start.z, p.getX(), p.getY() + p.getBbHeight() / 2, p.getZ(), c);

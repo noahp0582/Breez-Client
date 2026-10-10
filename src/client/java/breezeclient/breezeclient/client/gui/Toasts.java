@@ -27,6 +27,7 @@ public final class Toasts {
 	/** Every alert, newest last, so a burst merged into one pop-up can still be read back with .alerts. */
 	private static final java.util.ArrayDeque<String> HISTORY = new java.util.ArrayDeque<>();
 	private static final int HISTORY_MAX = 100;
+	private static volatile java.util.function.BiConsumer<String, String> sink;
 	private static final int W = 190, H = 30, GAP = 4;
 
 	private Toasts() {}
@@ -39,6 +40,8 @@ public final class Toasts {
 			if (HISTORY.size() >= HISTORY_MAX) HISTORY.removeFirst();
 			HISTORY.addLast(title + ": " + body);
 		}
+		var forward = sink;
+		if (forward != null) forward.accept(title, body);
 		if (!GuiState.THEME.toastsEnabled.get()) {
 			ChatCommands.print(title + ": " + body);
 			return;
@@ -57,6 +60,9 @@ public final class Toasts {
 			LIVE.add(new Toast(title, body, color));
 		}
 	}
+
+	/** One listener (the alert webhook) that sees every alert. */
+	public static void setSink(java.util.function.BiConsumer<String, String> s) { sink = s; }
 
 	/** Recent alerts, oldest first. */
 	public static List<String> history() {

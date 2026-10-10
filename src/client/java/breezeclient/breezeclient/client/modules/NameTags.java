@@ -162,7 +162,7 @@ public class NameTags extends Module {
 		int w = font.width(text);
 		int h = healthBar.get() ? 14 : 11;
 		panel(g, -w / 2 - 2, -h, w + 4, h);
-		int nameColor = (staff ? staffColor.get() : playerColor.get()) | 0xFF000000;
+		int nameColor = (staff ? staffColor.get() : Friends.is(name) ? Friends.COLOR : playerColor.get()) | 0xFF000000;
 		g.drawString(font, text, -w / 2, -h + 2, nameColor, false);
 		if (healthBar.get()) {
 			float frac = Math.max(0f, Math.min(1f, hp / Math.max(1f, p.getMaxHealth())));

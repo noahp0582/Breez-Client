@@ -52,19 +52,27 @@ public class KillSwitch extends Module {
 
 	private void check() {
 		Set<String> trust = new HashSet<>(trusted.get());
+		trust.addAll(breezeclient.breezeclient.client.gui.GuiState.CLIENT.friends.get());
 		var hit = StaffTracker.findNearby(radius.get(), spectator.get(), ghosts.get(), anyPlayer.get(), trust);
 		if (hit == null) return;
 		trigger(hit);
 	}
 
 	private void trigger(StaffTracker.Hit hit) {
-		Minecraft mc = Minecraft.getInstance();
-		var conn = mc.getConnection();
-		if (conn == null) return;
+		if (Minecraft.getInstance().getConnection() == null) return;
 		log(hit);
+		String why = "KillSwitch: " + hit.name() + " (" + hit.reason() + ")";
+		AlertWebhook.safety(why);
+		disconnect(why, reconnect.get());
+	}
+
+	/** Drops the connection at once: stops automation, optionally blocks auto-reconnect, then disconnects. */
+	public static void disconnect(String reason, boolean allowReconnect) {
+		var conn = Minecraft.getInstance().getConnection();
+		if (conn == null) return;
 		breezeclient.breezeclient.client.Modules.stopAutomation();
-		if (!reconnect.get()) Reconnect.suppress();
-		conn.getConnection().disconnect(Component.literal("KillSwitch: " + hit.name() + " (" + hit.reason() + ")"));
+		if (!allowReconnect) Reconnect.suppress();
+		conn.getConnection().disconnect(Component.literal(reason));
 	}
 
 	private void log(StaffTracker.Hit hit) {

@@ -3,6 +3,7 @@ package breezeclient.breezeclient.core.gui;
 import breezeclient.breezeclient.core.settings.BoolSetting;
 import breezeclient.breezeclient.core.settings.NumberSetting;
 import breezeclient.breezeclient.core.settings.Setting;
+import breezeclient.breezeclient.core.settings.StringListSetting;
 import breezeclient.breezeclient.core.settings.StringSetting;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -18,6 +19,7 @@ public final class ClientSettings {
 	public final BoolSetting autoSave = new BoolSetting("Save config when closing screens", true);
 	public final BoolSetting hudOnlyInGame = new BoolSetting("Hide HUD in F1 mode", true);
 	public final BoolSetting alertsInChat = new BoolSetting("Alerts in chat", false);
+	public final StringListSetting friends = new StringListSetting("Friends", List.of());
 
 	public ClientSettings() {
 		prefix.setMeta("Chat", "Messages starting with this are Breez commands and are never sent to the server. 1-3 characters.");
@@ -26,10 +28,11 @@ public final class ClientSettings {
 		announceAll.setMeta("Notifications", "Show a toast whenever any module is toggled, regardless of its own Chat feedback setting.");
 		autoSave.setMeta("General", "Write config files when a Breez screen closes.");
 		hudOnlyInGame.setMeta("General", "Do not draw the Breez HUD when Minecraft's HUD is hidden (F1).");
+		friends.setMeta("Friends", "Player names shown in green by PlayerESP and NameTags and ignored by KillSwitch. Edit with .friend add/remove/list.");
 		alertsInChat.setMeta("Notifications", "Send finds (spawners, bases, stashes) to chat instead of the merged pop-ups. Chat fills up fast when many are found.");
 	}
 
-	public List<Setting<?>> settings() { return List.of(prefix, humanization, rotationSpeed, announceAll, autoSave, hudOnlyInGame, alertsInChat); }
+	public List<Setting<?>> settings() { return List.of(prefix, humanization, rotationSpeed, announceAll, autoSave, hudOnlyInGame, alertsInChat, friends); }
 
 	/** A valid prefix is 1-3 visible characters without spaces. */
 	public String safePrefix() {
