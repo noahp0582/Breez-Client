@@ -109,11 +109,11 @@ public final class ExtraTest {
 			for (String c : List.of("-200 41 0", "-199 41 0", "-198 41 0")) cmd(mc, "setblock " + c + " minecraft:chest");
 		}
 		// the scanner refreshes already-loaded chunks round-robin, so allow a full pass before expecting the control to show up
-		if (ticks == 650) susReport("SIGNATURES, positive control placed at tick 100");
+		if (ticks == 1300) susReport("SIGNATURES, positive control placed at tick 100");
 		if (ticks == 130) shot(mc);
 		if (ticks == 140) mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
 		if (ticks == 175) shot(mc);
-		if (ticks == 660) {
+		if (ticks == 1310) {
 			check(mc);
 			mc.stop();
 		}
