@@ -1,6 +1,15 @@
 package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.modules.AmethystDetector;
+import breezeclient.breezeclient.client.modules.ArmorTrimHider;
+import breezeclient.breezeclient.client.modules.MotionBlur;
+import breezeclient.breezeclient.client.modules.CustomGlint;
+import breezeclient.breezeclient.client.modules.HitBox;
+import breezeclient.breezeclient.client.modules.NameTags;
+import breezeclient.breezeclient.client.modules.CreamyKeys;
+import breezeclient.breezeclient.client.modules.CustomAccessories;
+import breezeclient.breezeclient.client.modules.Animations;
+import breezeclient.breezeclient.client.modules.RegionMap;
 import breezeclient.breezeclient.client.modules.BlockEntityEsp;
 import breezeclient.breezeclient.client.modules.ClusterEsp;
 import breezeclient.breezeclient.client.modules.CustomFov;
@@ -94,6 +103,17 @@ public final class Modules {
 		m.register(new MaceModules.MaceSwap());
 		m.register(new MaceModules.MaceBomber());
 		m.register(new MaceModules.ShieldBreaker());
+		m.register(new ArmorTrimHider());
+		m.register(new MotionBlur());
+		m.register(new CustomGlint());
+		m.register(new HitBox());
+		m.register(new NameTags());
+		m.register(new CreamyKeys());
+		m.register(new CustomAccessories());
+		m.register(new Animations());
+		m.register(new RegionMap());
+		NameTags.registerEvents();
+		RegionMap.registerEvents();
 		HitParticles.registerEvents();
 		NameProtect.registerEvents();
 		CustomCrosshair.registerEvents();

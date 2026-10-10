@@ -77,7 +77,16 @@ The look and layout are modelled on Meteor Client's, but all code here is origin
 | AutoWalk, AutoClicker, AutoTPA, FastUse, FreeLook, Zoom, CustomFOV, CustomCrosshair, JumpCircles, HitParticles, NameProtect, SkinProtect | Utility and visual modules. |
 | AimAssist, Triggerbot, HoverTotem, AnchorMacro, DoubleAnchor, MaceSwap, MaceBomber, ShieldBreaker, ElytraSwap | Combat helpers. Every attack goes through one safety gate that refuses targets a vanilla server kicks you for (yourself, items, XP orbs, arrows). |
 
-Not built on purpose: FakePay, FakeStats and GambleRigger (they exist to fake payments or rig gambles against other players).
+| ArmorTrimHider, CustomGlint, MotionBlur, Animations | Render-only changes you see locally: hide or randomize armor trims, recolor the enchant glint (rainbow option), frame-blend motion blur (strength 1-5), steadier first-person hands (no equip/cooldown dip, swing speed, hand offset and size). |
+| NameTags | HUD-styled tags with health bar, distance and gear for players, names and counts for dropped items, visible through walls; can hide the vanilla tag. |
+| HitBox | Your crosshair treats other entities as a bit wider (default +0.15). The server still uses the real hitbox and its own reach check, so large values just produce rejected hits. |
+| CreamyKeys | Synthesized keyboard, mouse and scroll "thock" sounds, played outside Minecraft's sound engine. |
+| CustomAccessories | Your own cape (4 patterns, 2 colors; also on your elytra), particle trail, aura and crown. Only you see them. |
+| RegionMap | HUD map of regions you define (`name x1 z1 x2 z2`), with an alert when you enter another region. It ships empty: the regions of a specific server are yours to enter. |
+
+CrystalMacro can now lay an obsidian base first: aim at the top of a block that is not obsidian or bedrock and it places obsidian from your hotbar, then switches back to crystals.
+
+Not built on purpose: FakePay, FakeStats (including its editable leaderboard) and GambleRigger. They exist to fake payments and balances or to rig gambles against other players, so they are not part of this client.
 
 Waypoints: `.waypoints list|add|remove|clear`. Finds from SpawnerESP, AmethystDetector and SusChunks can save waypoints automatically.
 

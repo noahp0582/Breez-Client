@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Entity.class)
 public abstract class EntityMixin {
@@ -21,5 +22,12 @@ public abstract class EntityMixin {
 			breezeclient.breezeclient.client.modules.FreeLook.turn(yRot, xRot);
 			ci.cancel();
 		}
+	}
+
+	/** HitBox widens the targeting radius of other entities (your own crosshair only). */
+	@Inject(method = "getPickRadius", at = @At("RETURN"), cancellable = true)
+	private void breez$pick(CallbackInfoReturnable<Float> cir) {
+		float extra = breezeclient.breezeclient.client.modules.HitBox.pickRadius((Entity) (Object) this);
+		if (extra > 0) cir.setReturnValue(cir.getReturnValue() + extra);
 	}
 }

@@ -62,6 +62,15 @@ public final class ModuleInfo {
 		m("MaceSwap", "Switches to a mace when you attack, then back to the slot you had.");
 		m("MaceBomber", "While falling onto a target, equips the mace, lines up and smashes for the fall bonus.");
 		m("ShieldBreaker", "When the target under your crosshair is blocking, switches to an axe (and optionally hits).");
+		m("ArmorTrimHider", "Hides or randomizes the armor trims you see on worn armor. Local rendering only.");
+		m("MotionBlur", "Cinematic motion blur by blending frames. Strength 1-5.");
+		m("CustomGlint", "Recolors the enchantment glint on items and armor, with an optional rainbow cycle. Local only.");
+		m("HitBox", "Your crosshair treats other entities as slightly wider. The server still uses the real hitbox and its own reach check, so keep it small.");
+		m("NameTags", "HUD-styled nametags with health, distance and gear for players, and names with counts for dropped items; visible through walls.");
+		m("CreamyKeys", "Synthesized soft keyboard, mouse and scroll sounds with pitch variation. Only you hear them.");
+		m("CustomAccessories", "Cosmetics for yourself: a custom cape, trail, aura and crown. Only you see them.");
+		m("Animations", "Steadier first-person hands: no equip or cooldown dip, swing speed, hand offset and size. Visual only.");
+		m("RegionMap", "HUD map of regions you define (name x1 z1 x2 z2), with an alert when you enter a different one.");
 		m("BlockESP", "Highlights any blocks you choose through walls. Edit the list in the settings or with .blockesp.");
 		m("OreFinder", "Highlights the ores the server has actually sent you, including ancient debris.");
 		m("SeedOres", "Predicts where ores and ancient debris generated using the world seed, even when anti-xray hides them. Set the seed in the Profiles tab.");
@@ -75,7 +84,7 @@ public final class ModuleInfo {
 		m("AutoReconnect", "Reconnects after the server drops you. Never after a manual disconnect or a kill switch.");
 		m("AntiAFK", "Small irregular camera turns and hops so you are not kicked for idling.");
 		m("AutoEat", "Eats food from your hotbar when hungry, then switches back.");
-		m("CrystalMacro", "Places and breaks end crystals at your crosshair with randomized timing.");
+		m("CrystalMacro", "Places and breaks end crystals at your crosshair with randomized timing, laying an obsidian base first when needed.");
 		m("TotemMacro", "Keeps a totem of undying in your offhand, refilling it after a pop.");
 		m("SpawnerPickup", "Walks to spawners, mines them with a silk touch pickaxe, then moves only the spawners into your ender chest.");
 		m("SchematicBuilder", "Builds a loaded schematic layer by layer with eased camera movement. Use .build load / origin / start.");
@@ -112,6 +121,7 @@ public final class ModuleInfo {
 		s("SchematicBuilder", "File", "Build", "Schematic file name (set with .build load).");
 		s("SchematicBuilder", "Reach", "Build", "Maximum distance for placing blocks.");
 		s("SchematicBuilder", "Delay (ticks)", "Humanization", "Average delay between placements.");
+		s("CrystalMacro", "Lay obsidian base", "Base", "Place obsidian on the aimed block first when it is not obsidian or bedrock.");
 		s("CrystalMacro", "Only while holding use", "Behavior", "Only act while you hold right click.");
 		s("TotemMacro", "Delay (ticks)", "Humanization", "Average delay before refilling the offhand.");
 		s("Freecam", "Speed", "General", "Camera speed in blocks per tick.");

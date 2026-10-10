@@ -16,6 +16,7 @@ public abstract class GameRendererMixin {
 	private void breez$fov(Camera camera, float partialTick, boolean useFovSetting, CallbackInfoReturnable<Float> cir) {
 		float fov = cir.getReturnValue();
 		float out = Zoom.apply(CustomFov.apply(fov));
+		if (useFovSetting) breezeclient.breezeclient.client.modules.NameTags.noteFov(out);
 		if (out != fov) cir.setReturnValue(out);
 	}
 }
