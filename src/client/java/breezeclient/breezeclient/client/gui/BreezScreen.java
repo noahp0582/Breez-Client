@@ -215,7 +215,7 @@ public abstract class BreezScreen extends Screen {
 	public boolean keyPressed(KeyEvent e) {
 		Widget f = Widget.focused();
 		if (f != null && f.key(e.key(), e.modifiers())) return true;
-		if (e.key() == 344 && f == null) { // right shift closes
+		if (breezeclient.breezeclient.client.input.KeyPoller.isGuiKey(e) && f == null) { // the GUI key closes it again
 			onClose();
 			return true;
 		}

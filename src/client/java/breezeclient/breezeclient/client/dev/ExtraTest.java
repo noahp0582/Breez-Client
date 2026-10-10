@@ -90,6 +90,14 @@ public final class ExtraTest {
 				else m.setEnabled(true);
 			}
 		}
+		if (ticks == 40) net.minecraft.client.KeyMapping.click(com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM.getOrCreate(344));
+		if (ticks == 43) {
+			LOG.add("rightShiftOpensGui=" + (mc.screen instanceof breezeclient.breezeclient.client.gui.ModulesScreen));
+			mc.setScreen(null);
+			boolean listed = false;
+			for (var k : mc.options.keyMappings) if (k.getName().equals("key.breez-client.open_gui")) listed = true;
+			LOG.add("keyListedInControls=" + listed);
+		}
 		if (ticks == 90) {
 			// positive control: a spawner pile and a hopper-fed storage row far enough away to be evaluated
 			cmd(mc, "forceload add 200 0");

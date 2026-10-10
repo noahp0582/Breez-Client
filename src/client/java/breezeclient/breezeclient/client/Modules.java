@@ -326,6 +326,15 @@ public final class Modules {
 			}
 		});
 		c.register(new Command() {
+			public String name() { return "gui"; }
+			public String usage() { return "gui [Modules|Config|GUI|Macros|Profiles|Waypoints|HUD]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				String tab = a.length > 0 ? a[0] : breezeclient.breezeclient.client.gui.GuiState.lastTab;
+				// opened on the next tick: the chat screen is still closing while this command runs
+				net.minecraft.client.Minecraft.getInstance().execute(() -> breezeclient.breezeclient.client.gui.Tabs.open(tab));
+			}
+		});
+		c.register(new Command() {
 			public String name() { return "sus"; }
 			public String usage() { return "sus [count|reset]"; }
 			public void run(String[] a, Consumer<String> reply) {
