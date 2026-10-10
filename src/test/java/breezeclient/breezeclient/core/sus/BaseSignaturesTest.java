@@ -199,4 +199,64 @@ class BaseSignaturesTest {
 		put(b, "minecraft:hopper", new Pos(0, 5, 0), new Pos(30, 5, 0), new Pos(60, 5, 0), new Pos(90, 5, 0));
 		assertFalse(found(BaseSignatures.evaluateClusters(b, ALL, CFG, 0, 0)).contains(Signature.HOPPER_STORAGE));
 	}
+
+	@Test
+	void playerBuildingBlocksNeedAMinimumAndNoStructure() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		for (int i = 0; i < 10; i++) put(b, "minecraft:white_concrete", new Pos(i, 5, 0));
+		List<Finding> f = BaseSignatures.evaluate(b, false, ALL, CFG);
+		assertTrue(found(f).contains(Signature.BUILDING_BLOCKS));
+		assertFalse(found(BaseSignatures.evaluate(b, true, ALL, CFG)).contains(Signature.BUILDING_BLOCKS));
+		Map<String, List<Pos>> few = new HashMap<>();
+		for (int i = 0; i < 3; i++) put(few, "minecraft:glass", new Pos(i, 5, 0));
+		put(few, "minecraft:red_stained_glass", new Pos(9, 5, 0));
+		assertFalse(found(BaseSignatures.evaluate(few, false, ALL, CFG)).contains(Signature.BUILDING_BLOCKS));
+	}
+
+	@Test
+	void litFurnaceIsActivity() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		put(b, "minecraft:furnace[lit]", new Pos(1, 5, 1));
+		put(b, "minecraft:furnace", new Pos(2, 5, 1), new Pos(3, 5, 1));
+		List<Finding> f = BaseSignatures.evaluate(b, false, ALL, CFG);
+		assertTrue(found(f).contains(Signature.ACTIVITY));
+		assertTrue(BaseSignatures.strongest(f).score() >= 30);
+		Map<String, List<Pos>> idle = new HashMap<>();
+		put(idle, "minecraft:furnace", new Pos(2, 5, 1));
+		assertFalse(found(BaseSignatures.evaluate(idle, false, ALL, CFG)).contains(Signature.ACTIVITY));
+	}
+
+	@Test
+	void packedAnimalsAreAFarmButAFewAreNot() {
+		List<BaseSignatures.EntityPoint> pen = new java.util.ArrayList<>();
+		for (int i = 0; i < 14; i++) pen.add(new BaseSignatures.EntityPoint("minecraft:cow", false, new Pos(2 + i % 4, 5, 2 + i / 4)));
+		assertTrue(found(BaseSignatures.evaluateEntities(pen, false, 0, 0)).contains(Signature.ENTITY_CLUSTER));
+		List<BaseSignatures.EntityPoint> herd = pen.subList(0, 4);
+		assertTrue(BaseSignatures.evaluateEntities(herd, false, 0, 0).isEmpty());
+	}
+
+	@Test
+	void villagerCellsAreSkippedNextToAVillage() {
+		List<BaseSignatures.EntityPoint> cell = new java.util.ArrayList<>();
+		for (int i = 0; i < 6; i++) cell.add(new BaseSignatures.EntityPoint("minecraft:villager", false, new Pos(2 + i, 5, 2)));
+		assertTrue(found(BaseSignatures.evaluateEntities(cell, false, 0, 0)).contains(Signature.ENTITY_CLUSTER));
+		assertTrue(BaseSignatures.evaluateEntities(cell, true, 0, 0).isEmpty());
+	}
+
+	@Test
+	void entityGroupIsReportedOnlyByItsAnchorChunk() {
+		List<BaseSignatures.EntityPoint> stands = new java.util.ArrayList<>();
+		for (int i = 0; i < 3; i++) stands.add(new BaseSignatures.EntityPoint("minecraft:armor_stand", false, new Pos(14 + i, 5, 2)));
+		assertFalse(BaseSignatures.evaluateEntities(stands, false, 0, 0).isEmpty());
+		assertTrue(BaseSignatures.evaluateEntities(stands, false, 1, 0).isEmpty());
+	}
+
+	@Test
+	void tunnelFindingScalesWithLength() {
+		double short12 = BaseSignatures.tunnelFinding(12, 1, new Pos(0, 0, 0), new Pos(12, 2, 0)).score();
+		double long16 = BaseSignatures.tunnelFinding(16, 1, new Pos(0, 0, 0), new Pos(16, 2, 0)).score();
+		double many = BaseSignatures.tunnelFinding(16, 3, new Pos(0, 0, 0), new Pos(16, 2, 0)).score();
+		assertTrue(long16 > short12);
+		assertTrue(many > long16);
+	}
 }

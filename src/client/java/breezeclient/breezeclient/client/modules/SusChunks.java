@@ -18,6 +18,12 @@ import breezeclient.breezeclient.core.sus.SusScore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 
@@ -37,7 +43,7 @@ import java.util.Set;
  * block weights per chunk and is kept for people who want full control.
  */
 public class SusChunks extends Module {
-	public record Result(int chunkX, int chunkZ, double score, BlockPos min, BlockPos max, String label) {
+	public record Result(int chunkX, int chunkZ, double score, BlockPos min, BlockPos max, String label, List<String> all) {
 		public BlockPos center() { return new BlockPos((min.getX() + max.getX()) / 2, (min.getY() + max.getY()) / 2, (min.getZ() + max.getZ()) / 2); }
 	}
 
@@ -205,7 +211,7 @@ public class SusChunks extends Module {
 			int be = level.getChunk(cx, cz).getBlockEntities().size();
 			double score = SusScore.score(counts, weights, be, blockEntityWeight.get());
 			if (score < threshold.get()) continue;
-			Result r = new Result(cx, cz, score, new BlockPos(minX, minY, minZ), new BlockPos(maxX, maxY, maxZ), "weighted score");
+			Result r = new Result(cx, cz, score, new BlockPos(minX, minY, minZ), new BlockPos(maxX, maxY, maxZ), "weighted score", List.of());
 			results.add(r);
 			if (announced.add(en.getKey())) {
 				BlockPos c = r.center();
@@ -213,6 +219,19 @@ public class SusChunks extends Module {
 				if (waypoint.get()) Waypoints.add("Sus chunk", c);
 			}
 		}
+	}
+
+	/** Animals, villagers, armor stands, item frames and named mobs, grouped by the chunk they stand in. */
+	private static Map<Long, List<BaseSignatures.EntityPoint>> gatherEntities(ClientLevel level) {
+		Map<Long, List<BaseSignatures.EntityPoint>> out = new HashMap<>();
+		for (Entity e : level.entitiesForRendering()) {
+			if (e instanceof Player || !(e instanceof LivingEntity || e instanceof ItemFrame)) continue;
+			String type = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
+			long key = ChunkPos.asLong(e.getBlockX() >> 4, e.getBlockZ() >> 4);
+			out.computeIfAbsent(key, k -> new ArrayList<>())
+				.add(new BaseSignatures.EntityPoint(type, e.hasCustomName(), new Pos(e.getBlockX(), e.getBlockY(), e.getBlockZ())));
+		}
+		return out;
 	}
 
 	private Set<Signature> activeSignatures() {
@@ -223,7 +242,10 @@ public class SusChunks extends Module {
 	}
 
 	/** What one chunk's hits contained when they were last read; reused while the hit positions are unchanged. */
-	private record Snapshot(long sig, Map<String, List<Pos>> byId, boolean natural) {}
+	private record Snapshot(long sig, Map<String, List<Pos>> byId, boolean natural, List<ActivityPos> activity) {}
+
+	/** A furnace, campfire or lamp: its lit state changes without the position set changing, so it is re-read each pass. */
+	private record ActivityPos(BlockPos pos, String id) {}
 
 	private final Map<Long, Snapshot> snapshots = new HashMap<>();
 
@@ -238,13 +260,15 @@ public class SusChunks extends Module {
 			Snapshot snap = snapshots.get(en.getKey());
 			if (snap == null || snap.sig() != sig) {
 				Map<String, List<Pos>> byId = new HashMap<>();
+				List<ActivityPos> activity = new ArrayList<>();
 				for (BlockPos p : en.getValue()) {
 					String id = BlockIds.idOf(level.getBlockState(p).getBlock());
 					byId.computeIfAbsent(id, k -> new ArrayList<>()).add(new Pos(p.getX(), p.getY(), p.getZ()));
+					if (BaseSignatures.ACTIVITY_BASE.contains(id)) activity.add(new ActivityPos(p, id));
 				}
 				Map<String, Integer> counts = new HashMap<>();
 				for (Map.Entry<String, List<Pos>> e : byId.entrySet()) counts.put(e.getKey(), e.getValue().size());
-				snap = new Snapshot(sig, byId, !BaseSignatures.naturalKinds(counts).isEmpty());
+				snap = new Snapshot(sig, byId, !BaseSignatures.naturalKinds(counts).isEmpty(), activity);
 				snapshots.put(en.getKey(), snap);
 			}
 			perChunk.put(en.getKey(), snap);
@@ -252,14 +276,20 @@ public class SusChunks extends Module {
 		}
 		snapshots.keySet().retainAll(perChunk.keySet());
 		BaseSignatures.Config cfg = new BaseSignatures.Config(minStack.asInt(), stackRadius.asInt(), minHoppers.asInt(),
-			minContainers.asInt(), minRedstone.asInt(), BaseSignatures.Config.defaults().farmRadius());
+			minContainers.asInt(), minRedstone.asInt(), BaseSignatures.Config.defaults().farmRadius(), BaseSignatures.Config.defaults().minBuilding());
 		Set<Signature> enabled = activeSignatures();
 		Set<Signature> local = EnumSet.noneOf(Signature.class);
 		local.addAll(enabled);
 		local.removeAll(BaseSignatures.CLUSTER); // those are evaluated across chunk borders below
 		List<Result> fresh = new ArrayList<>();
-		for (Map.Entry<Long, Snapshot> en : perChunk.entrySet()) {
-			int cx = ChunkPos.getX(en.getKey()), cz = ChunkPos.getZ(en.getKey());
+		Map<Long, List<BaseSignatures.EntityPoint>> entities = enabled.contains(Signature.ENTITY_CLUSTER) ? gatherEntities(level) : Map.of();
+		// chunks can matter for entities or tunnels alone, without any scanned block
+		Set<Long> keys = new HashSet<>(perChunk.keySet());
+		keys.addAll(entities.keySet());
+		if (enabled.contains(Signature.TUNNEL)) keys.addAll(TunnelFinder.chunkKeys());
+		for (long key : keys) {
+			Snapshot snap = perChunk.get(key);
+			int cx = ChunkPos.getX(key), cz = ChunkPos.getZ(key);
 			if (Math.max(Math.abs(cx - mine.x), Math.abs(cz - mine.z)) <= minDistance.asInt()) continue;
 			boolean nearNatural = false;
 			if (ignoreNatural.get()) {
@@ -272,7 +302,17 @@ public class SusChunks extends Module {
 					}
 				}
 			}
-			Map<String, List<Pos>> own = en.getValue().byId();
+			Map<String, List<Pos>> own = snap == null ? Map.of() : snap.byId();
+			if (snap != null && !snap.activity().isEmpty() && local.contains(Signature.ACTIVITY)) {
+				Map<String, List<Pos>> view = new HashMap<>(own);
+				for (ActivityPos a : snap.activity()) {
+					var st = level.getBlockState(a.pos());
+					if (st.hasProperty(BlockStateProperties.LIT) && st.getValue(BlockStateProperties.LIT)) {
+						view.computeIfAbsent(a.id() + BaseSignatures.LIT, k -> new ArrayList<>()).add(new Pos(a.pos().getX(), a.pos().getY(), a.pos().getZ()));
+					}
+				}
+				own = view;
+			}
 			var findings = new ArrayList<>(BaseSignatures.evaluate(own, nearNatural, local, cfg));
 			if (own.containsKey(BaseSignatures.SPAWNER) || own.containsKey(BaseSignatures.HOPPER)) {
 				Map<String, List<Pos>> merged = new HashMap<>();
@@ -288,6 +328,30 @@ public class SusChunks extends Module {
 				}
 				findings.addAll(BaseSignatures.evaluateClusters(merged, enabled, cfg, cx, cz));
 			}
+			if (enabled.contains(Signature.ENTITY_CLUSTER) && entities.containsKey(key)) {
+				List<BaseSignatures.EntityPoint> merged = new ArrayList<>();
+				for (int dx = -1; dx <= 1; dx++) {
+					for (int dz = -1; dz <= 1; dz++) merged.addAll(entities.getOrDefault(ChunkPos.asLong(cx + dx, cz + dz), List.of()));
+				}
+				findings.addAll(BaseSignatures.evaluateEntities(merged, nearNatural, cx, cz));
+			}
+			if (enabled.contains(Signature.TUNNEL) && !nearNatural) {
+				List<TunnelFinder.Run> runs = TunnelFinder.runsIn(cx, cz);
+				if (!runs.isEmpty()) {
+					int longest = 0, x1 = Integer.MAX_VALUE, y1 = Integer.MAX_VALUE, z1 = Integer.MAX_VALUE, x2 = Integer.MIN_VALUE, y2 = Integer.MIN_VALUE, z2 = Integer.MIN_VALUE;
+					for (TunnelFinder.Run r : runs) {
+						longest = Math.max(longest, r.length());
+						int ex = r.alongX() ? r.x() + r.length() : r.x() + 1, ez = r.alongX() ? r.z() + 1 : r.z() + r.length();
+						x1 = Math.min(x1, r.x());
+						y1 = Math.min(y1, r.y());
+						z1 = Math.min(z1, r.z());
+						x2 = Math.max(x2, ex);
+						y2 = Math.max(y2, r.y() + 2);
+						z2 = Math.max(z2, ez);
+					}
+					findings.add(BaseSignatures.tunnelFinding(longest, runs.size(), new Pos(x1, y1, z1), new Pos(x2, y2, z2)));
+				}
+			}
 			if (findings.isEmpty()) continue;
 			double score = BaseSignatures.combine(findings);
 			if (score < sigThreshold.get()) continue;
@@ -295,9 +359,10 @@ public class SusChunks extends Module {
 			String label = best.signature().label() + ": " + best.detail();
 			if (findings.size() > 1) label += " (+" + (findings.size() - 1) + " more)";
 			Result r = new Result(cx, cz, score, new BlockPos(best.min().x(), best.min().y(), best.min().z()),
-				new BlockPos(best.max().x(), best.max().y(), best.max().z()), label);
+				new BlockPos(best.max().x(), best.max().y(), best.max().z()), label,
+				findings.stream().map(f -> f.signature().label() + ": " + f.detail()).toList());
 			fresh.add(r);
-			if (announced.add(en.getKey())) {
+			if (announced.add(key)) {
 				BlockPos c = r.center();
 				if (notify.get()) EspModule.say(String.format("Base signature at %d %d %d: %s", c.getX(), c.getY(), c.getZ(), label));
 				if (waypoint.get()) Waypoints.add("Base: " + best.signature().label(), c);

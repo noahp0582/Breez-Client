@@ -30,7 +30,11 @@ public final class BaseSignatures {
 		STORAGE_ROOM("Storage room", true),
 		ENDER_CHEST("Ender chest", false),
 		REDSTONE("Redstone machine", true),
-		VALUABLES("Valuable blocks", false);
+		VALUABLES("Valuable blocks", false),
+		BUILDING_BLOCKS("Player building blocks", true),
+		ACTIVITY("Lit furnace or campfire", true),
+		ENTITY_CLUSTER("Entity cluster", false),
+		TUNNEL("Straight tunnel", true);
 
 		private final String label;
 		private final boolean weak;
@@ -59,10 +63,12 @@ public final class BaseSignatures {
 		public Set<Signature> signatures() {
 			return switch (this) {
 				case SPAWNER_BASES -> EnumSet.of(Signature.SPAWNER_STACK, Signature.SPAWNER_FARM, Signature.LONE_SPAWNER,
-					Signature.HOPPER_STORAGE, Signature.ENDER_CHEST, Signature.VALUABLES);
+					Signature.HOPPER_STORAGE, Signature.ENDER_CHEST, Signature.VALUABLES, Signature.BUILDING_BLOCKS,
+					Signature.ACTIVITY, Signature.ENTITY_CLUSTER, Signature.TUNNEL);
 				case ALL_BASES -> EnumSet.allOf(Signature.class);
 				case STORAGE -> EnumSet.of(Signature.STORAGE_ROOM, Signature.HOPPER_STORAGE, Signature.ENDER_CHEST, Signature.VALUABLES);
-				case FARMS -> EnumSet.of(Signature.SPAWNER_STACK, Signature.SPAWNER_FARM, Signature.HOPPER_STORAGE, Signature.REDSTONE);
+				case FARMS -> EnumSet.of(Signature.SPAWNER_STACK, Signature.SPAWNER_FARM, Signature.HOPPER_STORAGE, Signature.REDSTONE,
+					Signature.ENTITY_CLUSTER, Signature.ACTIVITY);
 				case CUSTOM -> EnumSet.noneOf(Signature.class);
 			};
 		}
@@ -71,8 +77,8 @@ public final class BaseSignatures {
 	public enum Natural { VILLAGE, MINESHAFT, DUNGEON, STRONGHOLD, ANCIENT_CITY, TRIAL_CHAMBER, NETHER_FORTRESS, BASTION, END_CITY, TEMPLE }
 
 	/** Tunable limits. */
-	public record Config(int minStack, int stackRadius, int minHoppers, int minContainers, int minRedstone, int farmRadius) {
-		public static Config defaults() { return new Config(3, 5, 4, 8, 6, 12); }
+	public record Config(int minStack, int stackRadius, int minHoppers, int minContainers, int minRedstone, int farmRadius, int minBuilding) {
+		public static Config defaults() { return new Config(3, 5, 4, 8, 6, 12, 8); }
 	}
 
 	/** One recognized signature in one chunk, with the blocks that triggered it. */
@@ -102,6 +108,28 @@ public final class BaseSignatures {
 		Set<String> s = new LinkedHashSet<>(List.of(SPAWNER, HOPPER));
 		s.addAll(FARM_PARTS);
 		s.addAll(CONTAINERS);
+		return Collections.unmodifiableSet(s);
+	}
+
+	/** Suffix added to an activity block id when its LIT state is set, e.g. "minecraft:furnace[lit]". */
+	public static final String LIT = "[lit]";
+
+	/** Blocks that are lit while someone is using them. */
+	public static final Set<String> ACTIVITY_BASE = Set.of("minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker",
+		"minecraft:campfire", "minecraft:soul_campfire", "minecraft:redstone_lamp");
+
+	/** Building blocks that natural generation (outside a few structures) does not make. */
+	public static final Set<String> BUILDING_BLOCKS = buildingBlocks();
+
+	private static Set<String> buildingBlocks() {
+		Set<String> s = new LinkedHashSet<>();
+		for (String c : COLORS) {
+			s.add("minecraft:" + c + "_concrete");
+			s.add("minecraft:" + c + "_stained_glass");
+			s.add("minecraft:" + c + "_glazed_terracotta");
+		}
+		s.addAll(List.of("minecraft:quartz_block", "minecraft:quartz_bricks", "minecraft:quartz_pillar", "minecraft:chiseled_quartz_block",
+			"minecraft:smooth_quartz"));
 		return Collections.unmodifiableSet(s);
 	}
 
@@ -146,6 +174,8 @@ public final class BaseSignatures {
 		s.addAll(FENCES);
 		s.addAll(NATURAL_MARKERS);
 		s.addAll(SPAWNER_NATURAL_MARKERS);
+		s.addAll(BUILDING_BLOCKS);
+		s.addAll(ACTIVITY_BASE);
 		return s;
 	}
 
@@ -345,6 +375,22 @@ public final class BaseSignatures {
 			}
 		}
 
+		if (enabled.contains(Signature.BUILDING_BLOCKS) && !naturalNearby) {
+			List<Pos> b = positions(blocks, BUILDING_BLOCKS);
+			if (b.size() >= cfg.minBuilding()) {
+				double score = Math.min(45, 25 + (b.size() - cfg.minBuilding()));
+				out.add(box(Signature.BUILDING_BLOCKS, score, b.size() + " concrete, glass or quartz blocks", b));
+			}
+		}
+
+		if (enabled.contains(Signature.ACTIVITY) && !naturalNearby) {
+			List<Pos> lit = new ArrayList<>();
+			for (String id : ACTIVITY_BASE) lit.addAll(blocks.getOrDefault(id + LIT, List.of()));
+			if (!lit.isEmpty()) {
+				out.add(box(Signature.ACTIVITY, Math.min(45, 30 + 4.0 * (lit.size() - 1)), lit.size() + " lit furnace, campfire or lamp", lit));
+			}
+		}
+
 		if (enabled.contains(Signature.STORAGE_ROOM) && !naturalNearby) {
 			int weighted = 0;
 			for (Map.Entry<String, List<Pos>> e : blocks.entrySet()) {
@@ -381,6 +427,76 @@ public final class BaseSignatures {
 			}
 		}
 		return out;
+	}
+
+	// ---- entities and tunnels (fed by the client, which owns the world access) ----
+
+	/** One entity the client saw: its type id, whether it carries a custom name, and where it is. */
+	public record EntityPoint(String type, boolean named, Pos pos) {}
+
+	private static final Set<String> HERD_TYPES = Set.of("minecraft:cow", "minecraft:pig", "minecraft:sheep", "minecraft:chicken",
+		"minecraft:rabbit", "minecraft:iron_golem", "minecraft:mooshroom", "minecraft:goat");
+	private static final Set<String> FRAME_TYPES = Set.of("minecraft:item_frame", "minecraft:glow_item_frame");
+	private static final double ENTITY_LINK = 6;
+
+	/**
+	 * Packed-together entities: animal pens and farms (12+ of one herd type), villager cells (5+), armor stand displays (3+),
+	 * item frame walls (6+) and groups of named mobs (3+). {@code points} may cover a chunk and its neighbours; only groups
+	 * anchored in chunk (cx, cz) are returned so each is reported once. Villager cells are skipped next to natural structures.
+	 */
+	public static List<Finding> evaluateEntities(List<EntityPoint> points, boolean naturalNearby, int cx, int cz) {
+		List<Finding> out = new ArrayList<>();
+		Predicate<Pos> mine = p -> Math.floorDiv(p.x(), 16) == cx && Math.floorDiv(p.z(), 16) == cz;
+		Map<String, List<Pos>> byType = new java.util.HashMap<>();
+		List<Pos> named = new ArrayList<>();
+		for (EntityPoint e : points) {
+			String t = FRAME_TYPES.contains(e.type()) ? "frames" : e.type();
+			byType.computeIfAbsent(t, k -> new ArrayList<>()).add(e.pos());
+			if (e.named()) named.add(e.pos());
+		}
+		for (Map.Entry<String, List<Pos>> en : byType.entrySet()) {
+			String type = en.getKey();
+			int min;
+			double base;
+			String what;
+			if (HERD_TYPES.contains(type)) {
+				min = 12;
+				base = 30;
+				what = type.substring(type.indexOf(':') + 1).replace('_', ' ') + "s packed together";
+			} else if (type.equals("minecraft:villager")) {
+				if (naturalNearby) continue;
+				min = 5;
+				base = 35;
+				what = "villagers in a tight space";
+			} else if (type.equals("minecraft:armor_stand")) {
+				min = 3;
+				base = 30;
+				what = "armor stands together";
+			} else if (type.equals("frames")) {
+				min = 6;
+				base = 30;
+				what = "item frames together";
+			} else {
+				continue;
+			}
+			List<Pos> best = List.of();
+			for (List<Pos> c : clusters(en.getValue(), ENTITY_LINK)) if (c.size() > best.size() && mine.test(corner(c))) best = c;
+			if (best.size() >= min) {
+				out.add(box(Signature.ENTITY_CLUSTER, Math.min(50, base + 2.0 * (best.size() - min)), best.size() + " " + what, best));
+			}
+		}
+		if (named.size() >= 3) {
+			List<Pos> best = List.of();
+			for (List<Pos> c : clusters(named, ENTITY_LINK * 2)) if (c.size() > best.size() && mine.test(corner(c))) best = c;
+			if (best.size() >= 3) out.add(box(Signature.ENTITY_CLUSTER, 30, best.size() + " named mobs together", best));
+		}
+		return out;
+	}
+
+	/** A straight-tunnel finding from the longest run (in blocks) and how many runs a chunk has. */
+	public static Finding tunnelFinding(int longest, int runs, Pos min, Pos max) {
+		double score = Math.min(50, 25 + Math.max(0, longest - 12) * 2.5 + 5.0 * Math.max(0, runs - 1));
+		return new Finding(Signature.TUNNEL, score, runs + " straight tunnel" + (runs > 1 ? "s" : "") + ", longest " + longest, min, max);
 	}
 
 	/** Chunk score: the strongest signature plus a quarter of the others, so chunks that show several rank above ones that show one. */
