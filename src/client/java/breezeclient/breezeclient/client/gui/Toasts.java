@@ -10,9 +10,11 @@ import java.util.List;
 /** Pop-up notifications. Falls back to chat when toasts are turned off in the GUI tab. */
 public final class Toasts {
 	private static final class Toast {
-		final String title, body;
+		final String title;
+		String body;
 		final int color;
-		final long born = System.currentTimeMillis();
+		long born = System.currentTimeMillis();
+		int merged;
 
 		Toast(String title, String body, int color) {
 			this.title = title;
@@ -35,7 +37,17 @@ public final class Toasts {
 			return;
 		}
 		synchronized (LIVE) {
-			if (LIVE.size() >= 6) LIVE.remove(0);
+			// a burst of alerts with the same title becomes one pop-up that shows the latest and how many more came in
+			long now = System.currentTimeMillis();
+			for (Toast t : LIVE) {
+				if (t.title.equals(title) && now - t.born < 1500) {
+					t.merged++;
+					t.body = body;
+					t.born = now - 400;
+					return;
+				}
+			}
+			if (LIVE.size() >= 4) LIVE.remove(0);
 			LIVE.add(new Toast(title, body, color));
 		}
 	}
@@ -75,7 +87,7 @@ public final class Toasts {
 				int bar = toast.color == 0 ? g.accent() : toast.color;
 				g.rect(px, py + 2, 2, H - 4, bar);
 				g.text(g.fit(toast.title, W - 14), px + 8, py + 5, bar);
-				g.text(g.fit(toast.body, W - 14), px + 8, py + 17, g.text());
+				g.text(g.fit(toast.merged > 0 ? toast.body + "  (+" + toast.merged + ")" : toast.body, W - 14), px + 8, py + 17, g.text());
 				slot++;
 			}
 		}

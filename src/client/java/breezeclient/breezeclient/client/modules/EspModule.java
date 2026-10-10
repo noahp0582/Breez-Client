@@ -71,7 +71,11 @@ public abstract class EspModule extends Module {
 		}
 	}
 
-	protected static void say(String s) { ChatCommands.print(s); }
+	/** Finds and alerts: a merged pop-up by default, chat only when "Alerts in chat" is on in the Config tab. */
+	protected static void say(String s) {
+		if (breezeclient.breezeclient.client.gui.GuiState.CLIENT.alertsInChat.get()) ChatCommands.print(s);
+		else breezeclient.breezeclient.client.gui.Toasts.show("Breez", s);
+	}
 
 	@Override
 	protected void onRender(RenderFrame f) {

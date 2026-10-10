@@ -75,6 +75,8 @@ public final class ExtraTest {
 			cmd(mc, "item replace entity @a weapon.mainhand with minecraft:diamond_sword[enchantments={\"minecraft:sharpness\":5}]");
 		}
 		if (ticks == 70) {
+			set("SusChunks", "Mode", breezeclient.breezeclient.client.modules.SusChunks.Mode.SIGNATURES);
+			set("ArmorTrimHider", "Mode", breezeclient.breezeclient.client.modules.ArmorTrimHider.Mode.HIDE);
 			set("HitBox", "Players only", false);
 			set("HitBox", "Show boxes", true);
 			set("CustomAccessories", "Trail", true);
@@ -82,18 +84,38 @@ public final class ExtraTest {
 			set("CustomAccessories", "Crown", true);
 			set("RegionMap", "Regions", List.of("spawn -50 -50 50 50"));
 			set("Animations", "Offset X", 0.1);
-			for (String n : List.of("ArmorTrimHider", "MotionBlur", "CustomGlint", "HitBox", "NameTags", "CreamyKeys", "CustomAccessories", "Animations", "RegionMap")) {
+			for (String n : List.of("ArmorTrimHider", "MotionBlur", "CustomGlint", "HitBox", "NameTags", "CreamyKeys", "CustomAccessories", "Animations", "RegionMap", "SusChunks")) {
 				Module m = BreezClientClient.MODULES.get(n);
 				if (m == null) LOG.add("MISSING module " + n);
 				else m.setEnabled(true);
 			}
 		}
+		if (ticks == 90) {
+			// positive control: a spawner pile and a hopper-fed storage row far enough away to be evaluated
+			cmd(mc, "forceload add 200 0");
+			cmd(mc, "forceload add -200 0");
+		}
+		if (ticks == 100) {
+			for (String c : List.of("200 40 0", "201 40 0", "200 40 1", "201 40 1", "202 40 0")) cmd(mc, "setblock " + c + " minecraft:spawner");
+			for (String c : List.of("-200 40 0", "-199 40 0", "-198 40 0", "-197 40 0")) cmd(mc, "setblock " + c + " minecraft:hopper");
+			for (String c : List.of("-200 41 0", "-199 41 0", "-198 41 0")) cmd(mc, "setblock " + c + " minecraft:chest");
+		}
+		// the scanner refreshes already-loaded chunks round-robin, so allow a full pass before expecting the control to show up
+		if (ticks == 650) susReport("SIGNATURES, positive control placed at tick 100");
 		if (ticks == 130) shot(mc);
 		if (ticks == 140) mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
 		if (ticks == 175) shot(mc);
-		if (ticks == 190) {
+		if (ticks == 660) {
 			check(mc);
 			mc.stop();
+		}
+	}
+
+	private static void susReport(String mode) {
+		var top = breezeclient.breezeclient.client.modules.SusChunks.top(500);
+		LOG.add("SusChunks[" + mode + "] flagged " + top.size() + " chunks");
+		for (var r : top.subList(0, Math.min(8, top.size()))) {
+			LOG.add(String.format("  %.0f  %s  chunk (%d,%d)", r.score(), r.label(), r.chunkX(), r.chunkZ()));
 		}
 	}
 

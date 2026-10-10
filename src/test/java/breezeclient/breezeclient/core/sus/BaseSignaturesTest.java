@@ -1,0 +1,173 @@
+package breezeclient.breezeclient.core.sus;
+
+import breezeclient.breezeclient.core.nav.Pos;
+import breezeclient.breezeclient.core.sus.BaseSignatures.Config;
+import breezeclient.breezeclient.core.sus.BaseSignatures.Finding;
+import breezeclient.breezeclient.core.sus.BaseSignatures.Natural;
+import breezeclient.breezeclient.core.sus.BaseSignatures.Preset;
+import breezeclient.breezeclient.core.sus.BaseSignatures.Signature;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class BaseSignaturesTest {
+	private static final Config CFG = Config.defaults();
+	private static final Set<Signature> ALL = Preset.ALL_BASES.signatures();
+
+	private static void put(Map<String, List<Pos>> m, String id, Pos... ps) {
+		m.computeIfAbsent(id, k -> new ArrayList<>()).addAll(List.of(ps));
+	}
+
+	private static Set<Signature> found(List<Finding> fs) {
+		Set<Signature> s = EnumSet.noneOf(Signature.class);
+		for (Finding f : fs) s.add(f.signature());
+		return s;
+	}
+
+	private static Map<String, Integer> counts(Object... kv) {
+		Map<String, Integer> m = new HashMap<>();
+		for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], (Integer) kv[i + 1]);
+		return m;
+	}
+
+	@Test
+	void tightSpawnerPileIsAStack() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		for (int i = 0; i < 5; i++) put(b, "minecraft:spawner", new Pos(100 + (i % 2), 20, 200 + i / 2));
+		List<Finding> f = BaseSignatures.evaluate(b, false, ALL, CFG);
+		assertTrue(found(f).contains(Signature.SPAWNER_STACK));
+		Finding stack = BaseSignatures.strongest(f);
+		assertEquals(Signature.SPAWNER_STACK, stack.signature());
+		assertTrue(stack.score() >= 50 + 8 * 2);
+	}
+
+	@Test
+	void spreadOutSpawnersAreNotAStack() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		put(b, "minecraft:spawner", new Pos(0, 20, 0), new Pos(40, 20, 0), new Pos(0, 20, 40), new Pos(40, 20, 40));
+		// each one has mossy cobblestone around it, like separate dungeons
+		for (Pos s : new ArrayList<>(b.get("minecraft:spawner"))) put(b, "minecraft:mossy_cobblestone", new Pos(s.x() + 1, s.y() - 1, s.z()));
+		List<Finding> f = BaseSignatures.evaluate(b, false, ALL, CFG);
+		assertFalse(found(f).contains(Signature.SPAWNER_STACK));
+		assertFalse(found(f).contains(Signature.LONE_SPAWNER));
+	}
+
+	@Test
+	void dungeonSpawnerWithChestIsNotFlagged() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		put(b, "minecraft:spawner", new Pos(10, 30, 10));
+		for (int i = 0; i < 8; i++) put(b, "minecraft:mossy_cobblestone", new Pos(8 + i % 4, 29, 8 + i / 4));
+		put(b, "minecraft:chest", new Pos(13, 30, 10), new Pos(7, 30, 11));
+		assertTrue(BaseSignatures.evaluate(b, false, ALL, CFG).isEmpty());
+	}
+
+	@Test
+	void spawnerWithoutNaturalSurroundingsIsFlagged() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		put(b, "minecraft:spawner", new Pos(10, -30, 10));
+		List<Finding> f = BaseSignatures.evaluate(b, false, ALL, CFG);
+		assertEquals(Set.of(Signature.LONE_SPAWNER), found(f));
+		// but not when a natural structure is nearby
+		assertTrue(BaseSignatures.evaluate(b, true, ALL, CFG).isEmpty());
+	}
+
+	@Test
+	void hoppersNextToASpawnerMakeAFarm() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		put(b, "minecraft:spawner", new Pos(0, 10, 0));
+		put(b, "minecraft:hopper", new Pos(1, 6, 0), new Pos(2, 6, 0));
+		put(b, "minecraft:mossy_cobblestone", new Pos(1, 9, 1));
+		assertTrue(found(BaseSignatures.evaluate(b, false, ALL, CFG)).contains(Signature.SPAWNER_FARM));
+	}
+
+	@Test
+	void hoppersAreNeverNaturalSoTheyAlwaysCount() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		for (int i = 0; i < 4; i++) put(b, "minecraft:hopper", new Pos(i, 5, 0));
+		put(b, "minecraft:chest", new Pos(0, 4, 0), new Pos(1, 4, 0));
+		List<Finding> f = BaseSignatures.evaluate(b, true, ALL, CFG); // even next to a natural structure
+		assertTrue(found(f).contains(Signature.HOPPER_STORAGE));
+		assertTrue(BaseSignatures.strongest(f).score() >= 38);
+	}
+
+	@Test
+	void storageRoomNeedsManyContainersAndNoStructure() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		for (int i = 0; i < 10; i++) put(b, "minecraft:chest", new Pos(i, 5, 0));
+		assertTrue(found(BaseSignatures.evaluate(b, false, ALL, CFG)).contains(Signature.STORAGE_ROOM));
+		assertFalse(found(BaseSignatures.evaluate(b, true, ALL, CFG)).contains(Signature.STORAGE_ROOM));
+		Map<String, List<Pos>> few = new HashMap<>();
+		for (int i = 0; i < 4; i++) put(few, "minecraft:chest", new Pos(i, 5, 0));
+		assertTrue(BaseSignatures.evaluate(few, false, ALL, CFG).isEmpty());
+	}
+
+	@Test
+	void shulkersCountDouble() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		for (int i = 0; i < 4; i++) put(b, "minecraft:purple_shulker_box", new Pos(i, 5, 0));
+		assertTrue(found(BaseSignatures.evaluate(b, false, ALL, CFG)).contains(Signature.STORAGE_ROOM)); // 4 x 2 = 8
+	}
+
+	@Test
+	void villageIsRecognizedFromItsJobsitesAndPaths() {
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:bell", 1, "minecraft:composter", 2, "minecraft:lectern", 1)).contains(Natural.VILLAGE));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:dirt_path", 30)).contains(Natural.VILLAGE));
+		assertFalse(BaseSignatures.naturalKinds(counts("minecraft:composter", 1)).contains(Natural.VILLAGE));
+	}
+
+	@Test
+	void otherNaturalStructures() {
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:cobweb", 9, "minecraft:rail", 5)).contains(Natural.MINESHAFT));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:mossy_cobblestone", 20)).contains(Natural.DUNGEON));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:end_portal_frame", 3)).contains(Natural.STRONGHOLD));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:sculk_shrieker", 1)).contains(Natural.ANCIENT_CITY));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:trial_spawner", 1)).contains(Natural.TRIAL_CHAMBER));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:nether_bricks", 40)).contains(Natural.NETHER_FORTRESS));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:gilded_blackstone", 2)).contains(Natural.BASTION));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:chest", 30, "minecraft:furnace", 5)).isEmpty());
+	}
+
+	@Test
+	void presetsPickTheirSignatures() {
+		assertTrue(Preset.SPAWNER_BASES.signatures().contains(Signature.SPAWNER_STACK));
+		assertFalse(Preset.SPAWNER_BASES.signatures().contains(Signature.STORAGE_ROOM));
+		assertFalse(Preset.SPAWNER_BASES.signatures().contains(Signature.REDSTONE));
+		assertEquals(Signature.values().length, Preset.ALL_BASES.signatures().size());
+		assertTrue(Preset.CUSTOM.signatures().isEmpty());
+	}
+
+	@Test
+	void combinedScoreRanksMultipleSignaturesHigher() {
+		Map<String, List<Pos>> one = new HashMap<>();
+		for (int i = 0; i < 3; i++) put(one, "minecraft:spawner", new Pos(i, 10, 0));
+		Map<String, List<Pos>> two = new HashMap<>(one);
+		put(two, "minecraft:ender_chest", new Pos(5, 10, 5));
+		double a = BaseSignatures.combine(BaseSignatures.evaluate(one, false, ALL, CFG));
+		double b = BaseSignatures.combine(BaseSignatures.evaluate(two, false, ALL, CFG));
+		assertTrue(b > a);
+	}
+
+	@Test
+	void nothingFoundMeansZero() {
+		assertEquals(0, BaseSignatures.combine(List.of()));
+		assertTrue(BaseSignatures.evaluate(new HashMap<>(), false, ALL, CFG).isEmpty());
+	}
+
+	@Test
+	void scanIdsCoverEverythingEvaluateUses() {
+		Set<String> ids = BaseSignatures.scanIds();
+		for (String needed : List.of("minecraft:spawner", "minecraft:hopper", "minecraft:ender_chest", "minecraft:beacon", "minecraft:chest",
+			"minecraft:piston", "minecraft:bell", "minecraft:mossy_cobblestone", "minecraft:cobweb", "minecraft:purple_shulker_box")) {
+			assertTrue(ids.contains(needed), needed);
+		}
+	}
+}

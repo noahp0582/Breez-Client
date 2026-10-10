@@ -74,7 +74,7 @@ public final class ModuleInfo {
 		m("BlockESP", "Highlights any blocks you choose through walls. Edit the list in the settings or with .blockesp.");
 		m("OreFinder", "Highlights the ores the server has actually sent you, including ancient debris.");
 		m("SeedOres", "Predicts where ores and ancient debris generated using the world seed, even when anti-xray hides them. Set the seed in the Profiles tab.");
-		m("SusChunks", "Scores chunks by player-built blocks (pistons, chests, hoppers, block entities) and highlights suspicious ones.");
+		m("SusChunks", "Finds player bases by specific signatures (spawner stacks, spawners with hoppers, hopper storage, big storage rooms, ender chests, beacons) and ignores villages, mineshafts, dungeons and other natural structures.");
 		m("PlayerESP", "Boxes, tracers and through-walls nametags with health and distance for other players.");
 		m("Freecam", "Detaches the camera so you can look around while your character stands still.");
 		m("Fullbright", "Maximum brightness everywhere (local night vision; nothing is sent to the server).");

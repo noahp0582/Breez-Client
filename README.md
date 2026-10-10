@@ -37,7 +37,7 @@ Drop the jar from `build/libs` (not the `-sources` one) into `.minecraft/mods` t
 | BlockESP | ESP for any block ids you choose: `.blockesp add minecraft:diamond_ore`. |
 | OreFinder | Scan-based ore ESP for what the server actually sent. Includes ancient debris. |
 | SeedOres | Seed-based ore prediction for chunks the server hid behind anti-xray. `.seed <seed>`, enable SeedOres. |
-| SusChunks | Scores chunks by player-built blocks (pistons, chests, hoppers, block entities) with configurable weights. `.sus` lists the top chunks. |
+| SusChunks | Finds player bases by specific signatures instead of a generic score: tight spawner stacks, spawners next to hoppers or redstone, hopper-fed storage, big storage rooms, ender chests, beacons and blocks of netherite/diamond/emerald. Villages, mineshafts, dungeons, strongholds, ancient cities, trial chambers, fortresses and bastions are recognized from their blocks and the weaker signatures are skipped around them. Presets: SPAWNER_BASES (default), ALL_BASES, STORAGE, FARMS, CUSTOM; minimums, threshold and max highlights are settings. The old weighted scoring is still there as Mode WEIGHTED. `.sus` lists the top chunks with the reason. |
 | PlayerESP | Boxes, tracers, and through-walls nametags with health and distance. |
 | Freecam | Detached camera. Your real player stands still and cannot attack or place. |
 | Fullbright | Local night vision. |
@@ -57,7 +57,7 @@ Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD)
 Left click a module toggles it, right click opens its settings page (grouped, collapsible sections, tooltips, per-setting reset,
 color picker, list editors with block/item search, key bind, hold-to-enable). `Ctrl+F` focuses the module search.
 - **GUI tab:** accent/text/background colors, opacity, scale, rounded corners, animation speed, HUD module-list side, toast settings, reset layout.
-- **Config tab:** command prefix, humanization delay scale, camera turn speed, announce-all-toggles.
+- **Config tab:** command prefix, humanization delay scale, camera turn speed, announce-all-toggles, "Alerts in chat" (off by default: finds show as merged pop-ups instead of filling chat).
 - **Profiles tab:** per-server world seed and staff list. **Macros tab:** create, edit, bind, run macros. **HUD tab:** drag HUD elements.
 - Toasts (pop-ups) replace chat spam; every module can announce toggles with its own "Chat feedback" switch.
 The look and layout are modelled on Meteor Client's, but all code here is original (Meteor is GPL-3.0).

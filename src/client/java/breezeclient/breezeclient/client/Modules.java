@@ -347,7 +347,7 @@ public final class Modules {
 				if (top.isEmpty()) reply.accept("No suspicious chunks (is SusChunks enabled?).");
 				for (var r : top) {
 					var p = r.center();
-					reply.accept(String.format("score %.1f chunk (%d,%d) at %d %d %d", r.score(), r.chunkX(), r.chunkZ(), p.getX(), p.getY(), p.getZ()));
+					reply.accept(String.format("%.0f  %s  chunk (%d,%d) at %d %d %d", r.score(), r.label(), r.chunkX(), r.chunkZ(), p.getX(), p.getY(), p.getZ()));
 				}
 			}
 		});
