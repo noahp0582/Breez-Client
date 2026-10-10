@@ -15,7 +15,6 @@ import net.minecraft.world.scores.PlayerScoreEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Shows something else (or nothing) where your name appears: on the sidebar scoreboard (line text, score text and title,
@@ -79,22 +78,7 @@ public class ScoreboardName extends Module {
 
 	/** Rebuilds a (team formatted) name, replacing your name by the custom text and keeping every other style. */
 	private Component rewrite(Component original) {
-		String me = ownName();
-		if (me.isEmpty() || !original.getString().toLowerCase(Locale.ROOT).contains(me.toLowerCase(Locale.ROOT))) return original;
-		MutableComponent out = Component.empty();
-		original.visit((style, str) -> {
-			String lower = str.toLowerCase(Locale.ROOT), target = me.toLowerCase(Locale.ROOT);
-			int from = 0, idx = lower.indexOf(target);
-			while (idx >= 0) {
-				if (idx > from) out.append(Component.literal(str.substring(from, idx)).withStyle(style));
-				out.append(custom(style));
-				from = idx + target.length();
-				idx = lower.indexOf(target, from);
-			}
-			if (from < str.length()) out.append(Component.literal(str.substring(from)).withStyle(style));
-			return java.util.Optional.empty();
-		}, Style.EMPTY);
-		return out;
+		return NameReplace.replace(original, ownName(), this::custom);
 	}
 
 	// ---- hooks used by the mixins ----
@@ -114,7 +98,13 @@ public class ScoreboardName extends Module {
 		String me = ownName();
 		if (me.isEmpty()) return entries;
 		List<PlayerScoreEntry> kept = new ArrayList<>(entries.size());
-		for (PlayerScoreEntry e : entries) if (!e.owner().equalsIgnoreCase(me)) kept.add(e);
+		for (PlayerScoreEntry e : entries) {
+			// custom sidebars keep an internal holder id as owner and show a display name, so check both
+			Component shown = e.ownerName();
+			boolean mine = e.owner().equalsIgnoreCase(me)
+				|| (shown != null && LegacyFormat.indexOfName(shown.getString(), me, 0) >= 0);
+			if (!mine) kept.add(e);
+		}
 		return kept.size() == entries.size() ? entries : kept;
 	}
 
@@ -147,6 +137,10 @@ public class ScoreboardName extends Module {
 			return m.rewrite(message);
 		});
 	}
+
+	/** Ticks never run inside a sidebar draw, so a flag left behind by an interrupted draw is cleared here. */
+	@Override
+	protected void onTick() { inSidebar = false; }
 
 	@Override
 	protected void onDisable() { inSidebar = false; }

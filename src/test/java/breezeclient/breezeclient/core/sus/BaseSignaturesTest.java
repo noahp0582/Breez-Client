@@ -170,4 +170,33 @@ class BaseSignaturesTest {
 			assertTrue(ids.contains(needed), needed);
 		}
 	}
+
+	@Test
+	void pileSplitByAChunkBorderIsStillAStack() {
+		// 2 spawners in chunk 0 and 2 in chunk 1: neither side reaches minStack 3 alone
+		Map<String, List<Pos>> own = new HashMap<>();
+		put(own, "minecraft:spawner", new Pos(14, 10, 4), new Pos(15, 10, 4));
+		assertFalse(found(BaseSignatures.evaluate(own, false, ALL, CFG)).contains(Signature.SPAWNER_STACK));
+		Map<String, List<Pos>> merged = new HashMap<>(own);
+		put(merged, "minecraft:spawner", new Pos(16, 10, 4), new Pos(17, 10, 4));
+		List<Finding> a = BaseSignatures.evaluateClusters(merged, ALL, CFG, 0, 0);
+		assertTrue(found(a).contains(Signature.SPAWNER_STACK));
+		assertTrue(BaseSignatures.evaluateClusters(merged, ALL, CFG, 1, 0).isEmpty()); // reported once, by the anchor chunk
+	}
+
+	@Test
+	void clusterAnchorKeepsASmallerLocalPileFromBeingShadowed() {
+		Map<String, List<Pos>> merged = new HashMap<>();
+		put(merged, "minecraft:spawner", new Pos(2, 10, 2), new Pos(3, 10, 2), new Pos(4, 10, 2)); // 3 in chunk (0,0)
+		for (int i = 0; i < 6; i++) put(merged, "minecraft:spawner", new Pos(40 + i, 10, 2)); // bigger pile in chunk (2,0)
+		assertTrue(found(BaseSignatures.evaluateClusters(merged, ALL, CFG, 0, 0)).contains(Signature.SPAWNER_STACK));
+		assertTrue(found(BaseSignatures.evaluateClusters(merged, ALL, CFG, 2, 0)).contains(Signature.SPAWNER_STACK));
+	}
+
+	@Test
+	void scatteredHoppersAreNotOneGroup() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		put(b, "minecraft:hopper", new Pos(0, 5, 0), new Pos(30, 5, 0), new Pos(60, 5, 0), new Pos(90, 5, 0));
+		assertFalse(found(BaseSignatures.evaluateClusters(b, ALL, CFG, 0, 0)).contains(Signature.HOPPER_STORAGE));
+	}
 }

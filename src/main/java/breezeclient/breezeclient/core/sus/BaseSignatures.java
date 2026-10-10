@@ -4,11 +4,13 @@ import breezeclient.breezeclient.core.nav.Pos;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Pure logic for recognizing player bases. Instead of adding up "how many chests and block entities" (which every village,
@@ -43,6 +45,13 @@ public final class BaseSignatures {
 		/** Weak signatures are ignored next to natural structures, because those can produce them by themselves. */
 		public boolean weak() { return weak; }
 	}
+
+	/** Signatures that are about groups of blocks which can straddle a chunk border; see {@link #evaluateClusters}. */
+	public static final Set<Signature> CLUSTER = Collections.unmodifiableSet(
+		EnumSet.of(Signature.SPAWNER_STACK, Signature.SPAWNER_FARM, Signature.HOPPER_STORAGE));
+
+	/** Hoppers closer than this (blocks) to each other belong to the same hopper group. */
+	private static final double HOPPER_LINK = 6;
 
 	public enum Preset {
 		SPAWNER_BASES, ALL_BASES, STORAGE, FARMS, CUSTOM;
@@ -86,6 +95,16 @@ public final class BaseSignatures {
 	/** Blocks that never generate naturally and that spawner farms are built from. */
 	public static final Set<String> FARM_PARTS = Set.of(HOPPER, "minecraft:observer", "minecraft:piston", "minecraft:sticky_piston",
 		"minecraft:dropper", "minecraft:comparator", "minecraft:repeater", "minecraft:redstone_block");
+	/** Block ids the cluster signatures need, for callers that merge neighbouring chunks. */
+	public static final Set<String> CLUSTER_BLOCKS = clusterBlocks();
+
+	private static Set<String> clusterBlocks() {
+		Set<String> s = new LinkedHashSet<>(List.of(SPAWNER, HOPPER));
+		s.addAll(FARM_PARTS);
+		s.addAll(CONTAINERS);
+		return Collections.unmodifiableSet(s);
+	}
+
 	/** What a natural spawner is surrounded by (dungeon, mineshaft, nether fortress). A spawner without any of these is player-placed. */
 	private static final Set<String> SPAWNER_NATURAL_MARKERS = Set.of("minecraft:mossy_cobblestone", "minecraft:cobweb",
 		"minecraft:nether_bricks", "minecraft:nether_brick_fence", "minecraft:end_portal_frame");
@@ -193,8 +212,8 @@ public final class BaseSignatures {
 		return new Finding(s, score, detail, new Pos(x1, y1, z1), new Pos(x2, y2, z2));
 	}
 
-	/** The largest group of positions that are chained together by gaps of at most {@code radius}. */
-	static List<Pos> biggestCluster(List<Pos> ps, double radius) {
+	/** Groups of positions chained together by gaps of at most {@code radius}. */
+	static List<List<Pos>> clusters(List<Pos> ps, double radius) {
 		int n = ps.size();
 		int[] parent = new int[n];
 		for (int i = 0; i < n; i++) parent[i] = i;
@@ -206,9 +225,85 @@ public final class BaseSignatures {
 		}
 		Map<Integer, List<Pos>> groups = new java.util.HashMap<>();
 		for (int i = 0; i < n; i++) groups.computeIfAbsent(find(parent, i), k -> new ArrayList<>()).add(ps.get(i));
-		List<Pos> best = List.of();
-		for (List<Pos> g : groups.values()) if (g.size() > best.size()) best = g;
-		return best;
+		return new ArrayList<>(groups.values());
+	}
+
+	private static Pos corner(List<Pos> ps) {
+		int x = Integer.MAX_VALUE, y = Integer.MAX_VALUE, z = Integer.MAX_VALUE;
+		for (Pos p : ps) {
+			x = Math.min(x, p.x());
+			y = Math.min(y, p.y());
+			z = Math.min(z, p.z());
+		}
+		return new Pos(x, y, z);
+	}
+
+	/** Spawner stacks, spawners with farm parts and hopper groups. {@code anchorOk} decides which group is "ours". */
+	private static List<Finding> clusterFindings(Map<String, List<Pos>> blocks, Set<Signature> enabled, Config cfg, Predicate<Pos> anchorOk) {
+		List<Finding> out = new ArrayList<>();
+		List<Pos> spawners = blocks.getOrDefault(SPAWNER, List.of());
+
+		if (enabled.contains(Signature.SPAWNER_STACK) && spawners.size() >= cfg.minStack()) {
+			List<Pos> best = List.of();
+			for (List<Pos> c : clusters(spawners, cfg.stackRadius())) {
+				if (c.size() > best.size() && anchorOk.test(corner(c))) best = c;
+			}
+			if (best.size() >= cfg.minStack()) {
+				double score = Math.min(100, 50 + 8.0 * (best.size() - cfg.minStack()));
+				out.add(box(Signature.SPAWNER_STACK, score, best.size() + " spawners within " + cfg.stackRadius() + " blocks", best));
+			}
+		}
+
+		if (enabled.contains(Signature.SPAWNER_FARM) && !spawners.isEmpty()) {
+			List<Pos> support = positions(blocks, FARM_PARTS);
+			double r2 = (double) cfg.farmRadius() * cfg.farmRadius();
+			for (Pos s : spawners) {
+				if (!anchorOk.test(s)) continue;
+				List<Pos> near = new ArrayList<>();
+				for (Pos p : support) if (d2(s, p) <= r2) near.add(p);
+				if (near.size() >= 2) {
+					near.add(s);
+					out.add(box(Signature.SPAWNER_FARM, 38, "spawner with " + (near.size() - 1) + " hopper/redstone parts nearby", near));
+					break;
+				}
+			}
+		}
+
+		List<Pos> hoppers = blocks.getOrDefault(HOPPER, List.of());
+		if (enabled.contains(Signature.HOPPER_STORAGE) && hoppers.size() >= cfg.minHoppers()) {
+			List<Pos> best = List.of();
+			for (List<Pos> c : clusters(hoppers, HOPPER_LINK)) {
+				if (c.size() > best.size() && anchorOk.test(corner(c))) best = c;
+			}
+			if (best.size() >= cfg.minHoppers()) {
+				double score = Math.min(50, 30 + 2.0 * (best.size() - cfg.minHoppers()));
+				List<Pos> fedPos = new ArrayList<>();
+				for (Pos c : positions(blocks, CONTAINERS)) {
+					for (Pos h : best) {
+						if (d2(c, h) <= 64) {
+							fedPos.add(c);
+							break;
+						}
+					}
+				}
+				if (fedPos.size() >= 2) score += 8;
+				List<Pos> all = new ArrayList<>(best);
+				all.addAll(fedPos);
+				out.add(box(Signature.HOPPER_STORAGE, score, best.size() + " hoppers" + (fedPos.size() >= 2 ? " feeding " + fedPos.size() + " containers" : ""), all));
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * The cluster signatures on blocks merged from a chunk and its neighbours, so a pile or hopper group that straddles a
+	 * chunk border is counted whole. Only groups anchored in chunk (cx, cz) are returned, so each is reported by one chunk.
+	 */
+	public static List<Finding> evaluateClusters(Map<String, List<Pos>> merged, Set<Signature> enabled, Config cfg, int cx, int cz) {
+		Set<Signature> wanted = EnumSet.noneOf(Signature.class);
+		for (Signature s : enabled) if (CLUSTER.contains(s)) wanted.add(s);
+		if (wanted.isEmpty()) return List.of();
+		return clusterFindings(merged, wanted, cfg, p -> Math.floorDiv(p.x(), 16) == cx && Math.floorDiv(p.z(), 16) == cz);
 	}
 
 	private static int find(int[] p, int i) {
@@ -229,66 +324,25 @@ public final class BaseSignatures {
 	 * @param enabled       which signatures to look for
 	 */
 	public static List<Finding> evaluate(Map<String, List<Pos>> blocks, boolean naturalNearby, Set<Signature> enabled, Config cfg) {
-		List<Finding> out = new ArrayList<>();
+		List<Finding> out = new ArrayList<>(clusterFindings(blocks, enabled, cfg, p -> true));
 		List<Pos> spawners = blocks.getOrDefault(SPAWNER, List.of());
-		List<Pos> hoppers = blocks.getOrDefault(HOPPER, List.of());
 		List<Pos> containerPos = positions(blocks, CONTAINERS);
 
-		if (enabled.contains(Signature.SPAWNER_STACK) && spawners.size() >= cfg.minStack()) {
-			List<Pos> cluster = biggestCluster(spawners, cfg.stackRadius());
-			if (cluster.size() >= cfg.minStack()) {
-				double score = Math.min(100, 50 + 8.0 * (cluster.size() - cfg.minStack()));
-				out.add(box(Signature.SPAWNER_STACK, score, cluster.size() + " spawners within " + cfg.stackRadius() + " blocks", cluster));
-			}
-		}
-
-		if (!spawners.isEmpty()) {
-			List<Pos> support = positions(blocks, FARM_PARTS);
-			double r2 = (double) cfg.farmRadius() * cfg.farmRadius();
-			if (enabled.contains(Signature.SPAWNER_FARM)) {
-				for (Pos s : spawners) {
-					List<Pos> near = new ArrayList<>();
-					for (Pos p : support) if (d2(s, p) <= r2) near.add(p);
-					if (near.size() >= 2) {
-						near.add(s);
-						out.add(box(Signature.SPAWNER_FARM, 38, "spawner with " + (near.size() - 1) + " hopper/redstone parts nearby", near));
+		if (enabled.contains(Signature.LONE_SPAWNER) && !naturalNearby && !spawners.isEmpty()) {
+			List<Pos> markers = positions(blocks, SPAWNER_NATURAL_MARKERS);
+			for (Pos s : spawners) {
+				boolean natural = false;
+				for (Pos m : markers) {
+					if (d2(s, m) <= 64) {
+						natural = true;
 						break;
 					}
 				}
-			}
-			if (enabled.contains(Signature.LONE_SPAWNER) && !naturalNearby) {
-				List<Pos> markers = positions(blocks, SPAWNER_NATURAL_MARKERS);
-				for (Pos s : spawners) {
-					boolean natural = false;
-					for (Pos m : markers) {
-						if (d2(s, m) <= 64) {
-							natural = true;
-							break;
-						}
-					}
-					if (!natural) {
-						out.add(box(Signature.LONE_SPAWNER, 32, "spawner with no dungeon, mineshaft or fortress blocks around it", List.of(s)));
-						break;
-					}
+				if (!natural) {
+					out.add(box(Signature.LONE_SPAWNER, 32, "spawner with no dungeon, mineshaft or fortress blocks around it", List.of(s)));
+					break;
 				}
 			}
-		}
-
-		if (enabled.contains(Signature.HOPPER_STORAGE) && hoppers.size() >= cfg.minHoppers()) {
-			double score = Math.min(50, 30 + 2.0 * (hoppers.size() - cfg.minHoppers()));
-			int fed = 0;
-			for (Pos c : containerPos) {
-				for (Pos h : hoppers) {
-					if (d2(c, h) <= 64) {
-						fed++;
-						break;
-					}
-				}
-			}
-			if (fed >= 2) score += 8;
-			List<Pos> all = new ArrayList<>(hoppers);
-			all.addAll(containerPos);
-			out.add(box(Signature.HOPPER_STORAGE, score, hoppers.size() + " hoppers" + (fed >= 2 ? " feeding " + fed + " containers" : ""), all));
 		}
 
 		if (enabled.contains(Signature.STORAGE_ROOM) && !naturalNearby) {

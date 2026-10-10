@@ -50,7 +50,10 @@ public class CrystalMacro extends Module {
 		var p = mc.player;
 		var level = mc.level;
 		if (p == null || level == null || mc.gameMode == null || mc.screen != null) return;
-		if (onlyWhileUse.get() && !mc.options.keyUse.isDown()) return;
+		if (onlyWhileUse.get() && !mc.options.keyUse.isDown()) {
+			onObsidian = false; // a slot switch the macro owes you does not outlive the use key
+			return;
+		}
 		if (cooldown > 0) {
 			cooldown--;
 			return;
@@ -73,6 +76,8 @@ public class CrystalMacro extends Module {
 
 		if (!solidBase) {
 			if (!layBase.get() || state.isAir() || !state.isSolidRender()) return;
+			// only crystal play lays a base: with no crystals around this is just someone building with obsidian
+			if (CombatUtil.hotbarSlot(p, Items.END_CRYSTAL) < 0 && !p.getMainHandItem().is(Items.END_CRYSTAL)) return;
 			int obsidian = CombatUtil.hotbarSlot(p, Items.OBSIDIAN);
 			if (obsidian < 0) return;
 			if (p.getInventory().getSelectedSlot() != obsidian) {

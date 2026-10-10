@@ -222,25 +222,43 @@ public class SusChunks extends Module {
 		return out;
 	}
 
+	/** What one chunk's hits contained when they were last read; reused while the hit positions are unchanged. */
+	private record Snapshot(long sig, Map<String, List<Pos>> byId, boolean natural) {}
+
+	private final Map<Long, Snapshot> snapshots = new HashMap<>();
+
 	private void evaluateSignatures(ClientLevel level, ChunkPos mine) {
-		Map<Long, Map<String, List<Pos>>> perChunk = new HashMap<>();
+		Map<Long, Snapshot> perChunk = new HashMap<>();
 		Set<Long> natural = new HashSet<>();
 		for (Map.Entry<Long, List<BlockPos>> en : target.hitsByChunk().entrySet()) {
-			Map<String, List<Pos>> byId = new HashMap<>();
-			for (BlockPos p : en.getValue()) {
-				String id = BlockIds.idOf(level.getBlockState(p).getBlock());
-				byId.computeIfAbsent(id, k -> new ArrayList<>()).add(new Pos(p.getX(), p.getY(), p.getZ()));
+			// the scanner hands over a fresh list on every refresh, so compare positions, not identity; block states are
+			// only read when the positions changed (a block swapped for another at the same spot shows up on the next change)
+			long sig = en.getValue().size();
+			for (BlockPos p : en.getValue()) sig = sig * 31 + p.asLong();
+			Snapshot snap = snapshots.get(en.getKey());
+			if (snap == null || snap.sig() != sig) {
+				Map<String, List<Pos>> byId = new HashMap<>();
+				for (BlockPos p : en.getValue()) {
+					String id = BlockIds.idOf(level.getBlockState(p).getBlock());
+					byId.computeIfAbsent(id, k -> new ArrayList<>()).add(new Pos(p.getX(), p.getY(), p.getZ()));
+				}
+				Map<String, Integer> counts = new HashMap<>();
+				for (Map.Entry<String, List<Pos>> e : byId.entrySet()) counts.put(e.getKey(), e.getValue().size());
+				snap = new Snapshot(sig, byId, !BaseSignatures.naturalKinds(counts).isEmpty());
+				snapshots.put(en.getKey(), snap);
 			}
-			perChunk.put(en.getKey(), byId);
-			Map<String, Integer> counts = new HashMap<>();
-			for (Map.Entry<String, List<Pos>> e : byId.entrySet()) counts.put(e.getKey(), e.getValue().size());
-			if (!BaseSignatures.naturalKinds(counts).isEmpty()) natural.add(en.getKey());
+			perChunk.put(en.getKey(), snap);
+			if (snap.natural()) natural.add(en.getKey());
 		}
+		snapshots.keySet().retainAll(perChunk.keySet());
 		BaseSignatures.Config cfg = new BaseSignatures.Config(minStack.asInt(), stackRadius.asInt(), minHoppers.asInt(),
 			minContainers.asInt(), minRedstone.asInt(), BaseSignatures.Config.defaults().farmRadius());
 		Set<Signature> enabled = activeSignatures();
+		Set<Signature> local = EnumSet.noneOf(Signature.class);
+		local.addAll(enabled);
+		local.removeAll(BaseSignatures.CLUSTER); // those are evaluated across chunk borders below
 		List<Result> fresh = new ArrayList<>();
-		for (Map.Entry<Long, Map<String, List<Pos>>> en : perChunk.entrySet()) {
+		for (Map.Entry<Long, Snapshot> en : perChunk.entrySet()) {
 			int cx = ChunkPos.getX(en.getKey()), cz = ChunkPos.getZ(en.getKey());
 			if (Math.max(Math.abs(cx - mine.x), Math.abs(cz - mine.z)) <= minDistance.asInt()) continue;
 			boolean nearNatural = false;
@@ -254,7 +272,22 @@ public class SusChunks extends Module {
 					}
 				}
 			}
-			var findings = BaseSignatures.evaluate(en.getValue(), nearNatural, enabled, cfg);
+			Map<String, List<Pos>> own = en.getValue().byId();
+			var findings = new ArrayList<>(BaseSignatures.evaluate(own, nearNatural, local, cfg));
+			if (own.containsKey(BaseSignatures.SPAWNER) || own.containsKey(BaseSignatures.HOPPER)) {
+				Map<String, List<Pos>> merged = new HashMap<>();
+				for (int dx = -1; dx <= 1; dx++) {
+					for (int dz = -1; dz <= 1; dz++) {
+						Snapshot nb = perChunk.get(ChunkPos.asLong(cx + dx, cz + dz));
+						if (nb == null) continue;
+						for (String id : BaseSignatures.CLUSTER_BLOCKS) {
+							List<Pos> l = nb.byId().get(id);
+							if (l != null) merged.computeIfAbsent(id, k -> new ArrayList<>()).addAll(l);
+						}
+					}
+				}
+				findings.addAll(BaseSignatures.evaluateClusters(merged, enabled, cfg, cx, cz));
+			}
 			if (findings.isEmpty()) continue;
 			double score = BaseSignatures.combine(findings);
 			if (score < sigThreshold.get()) continue;

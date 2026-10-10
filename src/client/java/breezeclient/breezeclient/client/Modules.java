@@ -329,6 +329,24 @@ public final class Modules {
 			}
 		});
 		c.register(new Command() {
+			public String name() { return "alerts"; }
+			public String usage() { return "alerts [count]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				int n = 10;
+				if (a.length > 0) {
+					try {
+						n = Math.max(1, Math.min(100, Integer.parseInt(a[0])));
+					} catch (NumberFormatException e) {
+						reply.accept("Usage: " + usage());
+						return;
+					}
+				}
+				var all = breezeclient.breezeclient.client.gui.Toasts.history();
+				if (all.isEmpty()) reply.accept("No alerts yet.");
+				for (String line : all.subList(Math.max(0, all.size() - n), all.size())) reply.accept(line);
+			}
+		});
+		c.register(new Command() {
 			public String name() { return "gui"; }
 			public String usage() { return "gui [Modules|Config|GUI|Macros|Profiles|Waypoints|HUD]"; }
 			public void run(String[] a, Consumer<String> reply) {

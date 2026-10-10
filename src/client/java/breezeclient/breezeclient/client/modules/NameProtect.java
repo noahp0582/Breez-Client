@@ -22,10 +22,8 @@ public class NameProtect extends Module {
 			if (instance == null || !instance.enabled()) return message;
 			var mc = Minecraft.getInstance();
 			if (mc.player == null) return message;
-			String name = mc.player.getName().getString();
-			String text = message.getString();
-			if (name.isEmpty() || !text.contains(name)) return message;
-			return Component.literal(text.replace(name, instance.alias.get()));
+			return NameReplace.replace(message, mc.player.getName().getString(),
+				style -> Component.literal(instance.alias.get()).withStyle(style));
 		});
 	}
 }

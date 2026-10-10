@@ -48,6 +48,9 @@ public class NameTags extends Module {
 	private final ColorSetting staffColor = add(new ColorSetting("Staff color", 0xFFFF4444), "Colors", "Name color for listed staff.");
 	private final ColorSetting itemColor = add(new ColorSetting("Item color", 0xFFFFD866), "Colors", "Item name color.");
 
+	/** Entity ids of the players whose HUD tag was drawn in the last frame. */
+	private final java.util.Set<Integer> drawnPlayers = new java.util.HashSet<>();
+
 	private record Tag(double dist, float x, float y, Entity entity) {}
 
 	public NameTags() {
@@ -67,7 +70,9 @@ public class NameTags extends Module {
 
 	public static boolean hidesVanilla(Entity e) {
 		NameTags m = instance;
-		return m != null && m.enabled() && m.players.get() && m.hideVanilla.get() && e instanceof Player && e != Minecraft.getInstance().player;
+		// only where a HUD tag was actually drawn for that player last frame, so nobody ends up with no label at all
+		return m != null && m.enabled() && m.players.get() && m.hideVanilla.get() && e instanceof Player && e != Minecraft.getInstance().player
+			&& m.drawnPlayers.contains(e.getId());
 	}
 
 	/** Screen position (in GUI pixels) of a world point, or null when it is behind the camera. */
@@ -86,6 +91,7 @@ public class NameTags extends Module {
 	}
 
 	private void draw(GuiGraphics g) {
+		drawnPlayers.clear();
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.level == null || mc.player == null || mc.options.hideGui || mc.screen != null) return;
 		Camera cam = mc.gameRenderer.getMainCamera();
@@ -124,7 +130,10 @@ public class NameTags extends Module {
 			pose.translate(t.x(), t.y());
 			float sc = scale.asFloat();
 			pose.scale(sc, sc);
-			if (t.entity() instanceof Player p) drawPlayer(g, font, p, t.dist());
+			if (t.entity() instanceof Player p) {
+				drawnPlayers.add(p.getId());
+				drawPlayer(g, font, p, t.dist());
+			}
 			else if (t.entity() instanceof ItemEntity ie) drawItem(g, font, ie);
 			pose.popMatrix();
 		}

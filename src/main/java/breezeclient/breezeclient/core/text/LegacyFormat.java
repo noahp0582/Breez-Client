@@ -68,18 +68,37 @@ public final class LegacyFormat {
 		return sb.toString();
 	}
 
-	/** Case-insensitive replace of {@code target} in {@code text}; returns {@code text} itself when nothing matches. */
-	public static String replaceIgnoreCase(String text, String target, String with) {
-		if (target.isEmpty()) return text;
-		String lower = text.toLowerCase(Locale.ROOT), t = target.toLowerCase(Locale.ROOT);
-		int idx = lower.indexOf(t);
+	private static boolean isNameChar(char c) { return Character.isLetterOrDigit(c) || c == '_'; }
+
+	/**
+	 * Index of the first case-insensitive occurrence of {@code name} at or after {@code from} that is a whole name, i.e. not
+	 * glued to more name characters (letters, digits, underscore): "Bob" matches in "Bob joined" but not in "Bobby".
+	 * Returns -1 when there is none.
+	 */
+	public static int indexOfName(String text, String name, int from) {
+		if (name == null || name.isEmpty()) return -1;
+		String lower = text.toLowerCase(Locale.ROOT), t = name.toLowerCase(Locale.ROOT);
+		int idx = lower.indexOf(t, Math.max(0, from));
+		while (idx >= 0) {
+			int end = idx + t.length();
+			boolean leftOk = idx == 0 || !isNameChar(text.charAt(idx - 1));
+			boolean rightOk = end >= text.length() || !isNameChar(text.charAt(end));
+			if (leftOk && rightOk) return idx;
+			idx = lower.indexOf(t, idx + 1);
+		}
+		return -1;
+	}
+
+	/** Replaces every whole-name occurrence (see {@link #indexOfName}); returns {@code text} itself when nothing matches. */
+	public static String replaceName(String text, String name, String with) {
+		int idx = indexOfName(text, name, 0);
 		if (idx < 0) return text;
 		StringBuilder sb = new StringBuilder();
 		int from = 0;
 		while (idx >= 0) {
 			sb.append(text, from, idx).append(with);
-			from = idx + t.length();
-			idx = lower.indexOf(t, from);
+			from = idx + name.length();
+			idx = indexOfName(text, name, from);
 		}
 		return sb.append(text, from, text.length()).toString();
 	}

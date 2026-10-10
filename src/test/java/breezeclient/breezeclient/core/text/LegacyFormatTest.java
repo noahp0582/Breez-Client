@@ -60,9 +60,18 @@ class LegacyFormatTest {
 	}
 
 	@Test
-	void replaceIgnoreCaseReplacesEveryOccurrence() {
-		assertEquals("X joined, X left", LegacyFormat.replaceIgnoreCase("Noah joined, noah left", "NOAH", "X"));
-		assertEquals("nothing", LegacyFormat.replaceIgnoreCase("nothing", "abc", "X"));
-		assertEquals("same", LegacyFormat.replaceIgnoreCase("same", "", "X"));
+	void replaceNameReplacesEveryWholeNameCaseInsensitively() {
+		assertEquals("X joined, X left", LegacyFormat.replaceName("Noah joined, noah left", "NOAH", "X"));
+		assertEquals("nothing", LegacyFormat.replaceName("nothing", "abc", "X"));
+		assertEquals("same", LegacyFormat.replaceName("same", "", "X"));
+	}
+
+	@Test
+	void replaceNameLeavesLongerNamesAlone() {
+		assertEquals("Bobby and X", LegacyFormat.replaceName("Bobby and Bob", "Bob", "X"));
+		assertEquals("Bob_2 and X", LegacyFormat.replaceName("Bob_2 and bob", "Bob", "X"));
+		assertEquals("X: hi", LegacyFormat.replaceName("Bob: hi", "Bob", "X"));
+		assertEquals(-1, LegacyFormat.indexOfName("xBobx 9Bob", "Bob", 0));
+		assertEquals(0, LegacyFormat.indexOfName("Bob", "Bob", 0));
 	}
 }

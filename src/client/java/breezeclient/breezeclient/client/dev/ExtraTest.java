@@ -134,7 +134,7 @@ public final class ExtraTest {
 		if (ticks == 130) shot(mc);
 		if (ticks == 140) mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
 		if (ticks == 175) shot(mc);
-		if (ticks == 200) {
+		if (ticks == 910) {
 			check(mc);
 			mc.stop();
 		}

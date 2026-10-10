@@ -24,6 +24,9 @@ public final class Toasts {
 	}
 
 	private static final List<Toast> LIVE = new ArrayList<>();
+	/** Every alert, newest last, so a burst merged into one pop-up can still be read back with .alerts. */
+	private static final java.util.ArrayDeque<String> HISTORY = new java.util.ArrayDeque<>();
+	private static final int HISTORY_MAX = 100;
 	private static final int W = 190, H = 30, GAP = 4;
 
 	private Toasts() {}
@@ -32,17 +35,20 @@ public final class Toasts {
 
 	/** @param color ARGB accent bar color, 0 = theme accent */
 	public static void show(String title, String body, int color) {
+		synchronized (HISTORY) {
+			if (HISTORY.size() >= HISTORY_MAX) HISTORY.removeFirst();
+			HISTORY.addLast(title + ": " + body);
+		}
 		if (!GuiState.THEME.toastsEnabled.get()) {
 			ChatCommands.print(title + ": " + body);
 			return;
 		}
 		synchronized (LIVE) {
-			// a burst of alerts with the same title becomes one pop-up that shows the latest and how many more came in
+			// a burst of alerts with the same title becomes one pop-up: the first one and how many more came in (see .alerts)
 			long now = System.currentTimeMillis();
 			for (Toast t : LIVE) {
 				if (t.title.equals(title) && now - t.born < 1500) {
 					t.merged++;
-					t.body = body;
 					t.born = now - 400;
 					return;
 				}
@@ -50,6 +56,11 @@ public final class Toasts {
 			if (LIVE.size() >= 4) LIVE.remove(0);
 			LIVE.add(new Toast(title, body, color));
 		}
+	}
+
+	/** Recent alerts, oldest first. */
+	public static List<String> history() {
+		synchronized (HISTORY) { return new ArrayList<>(HISTORY); }
 	}
 
 	public static int count() {

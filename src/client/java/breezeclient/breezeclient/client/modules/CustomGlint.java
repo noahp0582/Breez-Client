@@ -40,6 +40,7 @@ public class CustomGlint extends Module {
 	private final Target armorTex = new Target("textures/misc/enchanted_glint_armor.png");
 	private int lastColor = Integer.MIN_VALUE;
 	private int tick;
+	private int reloadCheck;
 	private boolean lastItems, lastArmor;
 
 	public CustomGlint() { super("CustomGlint", Category.MISC); }
@@ -71,8 +72,10 @@ public class CustomGlint extends Module {
 
 	private void paint(Target t, int rgb) {
 		if (!load(t)) return;
-		TextureManager tm = Minecraft.getInstance().getTextureManager();
-		NativeImage img = new NativeImage(t.w, t.h, false);
+		// keep one texture per glint and rewrite its pixels, instead of allocating and registering a new one every repaint
+		NativeImage img = t.texture != null ? t.texture.getPixels() : null;
+		boolean reuse = img != null;
+		if (!reuse) img = new NativeImage(t.w, t.h, false);
 		double gain = brightness.get();
 		int cr = ColorMath.red(rgb), cg = ColorMath.green(rgb), cb = ColorMath.blue(rgb);
 		for (int y = 0; y < t.h; y++) {
@@ -84,9 +87,13 @@ public class CustomGlint extends Module {
 				img.setPixel(x, y, ColorMath.argb(a, r, g, b));
 			}
 		}
-		DynamicTexture fresh = new DynamicTexture(() -> "breez glint", img);
-		tm.register(t.id, fresh);
-		t.texture = fresh;
+		if (reuse) {
+			t.texture.upload();
+		} else {
+			DynamicTexture fresh = new DynamicTexture(() -> "breez glint", img);
+			Minecraft.getInstance().getTextureManager().register(t.id, fresh);
+			t.texture = fresh;
+		}
 	}
 
 	private void restore(Target t) {
@@ -109,8 +116,16 @@ public class CustomGlint extends Module {
 		if (!wantItems) restore(itemTex);
 		if (!wantArmor) restore(armorTex);
 		int c = currentColor();
-		AbstractTexture seenItem = mc.getTextureManager().getTexture(itemTex.id);
-		boolean lost = (itemTex.texture != null && seenItem != itemTex.texture); // resource reload dropped our copy
+		// a resource reload replaces our copy; looking once a second is enough to notice
+		boolean lost = false;
+		if (++reloadCheck % 20 == 0 && itemTex.texture != null) {
+			AbstractTexture seenItem = mc.getTextureManager().getTexture(itemTex.id);
+			lost = seenItem != itemTex.texture;
+			if (lost) {
+				itemTex.texture = null;
+				armorTex.texture = null;
+			}
+		}
 		// repaint when the color changed (rainbow: at most every 3 ticks), settings flipped, or the textures were reloaded
 		boolean due = c != lastColor && (!rainbow.get() || tick++ % 3 == 0);
 		if (due || lost || wantItems != lastItems || wantArmor != lastArmor || (wantItems && itemTex.texture == null) || (wantArmor && armorTex.texture == null)) {
