@@ -98,6 +98,27 @@ public final class ExtraTest {
 			for (var k : mc.options.keyMappings) if (k.getName().equals("key.breez-client.open_gui")) listed = true;
 			LOG.add("keyListedInControls=" + listed);
 		}
+		if (ticks == 52) {
+			cmd(mc, "scoreboard objectives add breeztest dummy {\"text\":\"Leaderboard\"}");
+			cmd(mc, "scoreboard objectives setdisplay sidebar breeztest");
+			cmd(mc, "scoreboard players set @a breeztest 1234");
+			cmd(mc, "scoreboard players set Alex breeztest 999");
+			cmd(mc, "scoreboard players set Steve breeztest 500");
+			String me = mc.player.getName().getString();
+			cmd(mc, "scoreboard objectives modify breeztest displayname {\"text\":\"" + me + " Stats\"}");
+			cmd(mc, "scoreboard players display name Alex breeztest {\"text\":\"Team: " + me + "\"}");
+			cmd(mc, "scoreboard players display numberformat Steve breeztest fixed {\"text\":\"owner " + me + "\"}");
+		}
+		if (ticks == 120) cmd(mc, "tellraw @a {\"text\":\"" + mc.player.getName().getString() + " received a payment\"}");
+		if (ticks == 124) for (Module m : BreezClientClient.MODULES.all()) m.setVisibleInHud(false);
+		if (ticks == 126) {
+			set("ScoreboardName", "Text", "&a&lSecret &7Name");
+			BreezClientClient.MODULES.get("ScoreboardName").setEnabled(true);
+		}
+		if (ticks == 128) shot(mc);
+		if (ticks == 130) set("ScoreboardName", "Mode", breezeclient.breezeclient.client.modules.ScoreboardName.Mode.HIDE_LINE);
+		if (ticks == 134) shot(mc);
+		if (ticks == 150) set("ScoreboardName", "Mode", breezeclient.breezeclient.client.modules.ScoreboardName.Mode.REPLACE);
 		if (ticks == 90) {
 			// positive control: a spawner pile and a hopper-fed storage row far enough away to be evaluated
 			cmd(mc, "forceload add 200 0");
@@ -109,11 +130,11 @@ public final class ExtraTest {
 			for (String c : List.of("-200 41 0", "-199 41 0", "-198 41 0")) cmd(mc, "setblock " + c + " minecraft:chest");
 		}
 		// the scanner refreshes already-loaded chunks round-robin, so allow a full pass before expecting the control to show up
-		if (ticks == 1300) susReport("SIGNATURES, positive control placed at tick 100");
+		if (ticks == 900) susReport("SIGNATURES, positive control placed at tick 100");
 		if (ticks == 130) shot(mc);
 		if (ticks == 140) mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
 		if (ticks == 175) shot(mc);
-		if (ticks == 1310) {
+		if (ticks == 200) {
 			check(mc);
 			mc.stop();
 		}

@@ -1,6 +1,7 @@
 package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.modules.AmethystDetector;
+import breezeclient.breezeclient.client.modules.ScoreboardName;
 import breezeclient.breezeclient.client.modules.ArmorTrimHider;
 import breezeclient.breezeclient.client.modules.MotionBlur;
 import breezeclient.breezeclient.client.modules.CustomGlint;
@@ -104,6 +105,7 @@ public final class Modules {
 		m.register(new MaceModules.MaceBomber());
 		m.register(new MaceModules.ShieldBreaker());
 		m.register(new ArmorTrimHider());
+		m.register(new ScoreboardName());
 		m.register(new MotionBlur());
 		m.register(new CustomGlint());
 		m.register(new HitBox());
@@ -113,6 +115,7 @@ public final class Modules {
 		m.register(new Animations());
 		m.register(new RegionMap());
 		NameTags.registerEvents();
+		ScoreboardName.registerEvents();
 		RegionMap.registerEvents();
 		HitParticles.registerEvents();
 		NameProtect.registerEvents();

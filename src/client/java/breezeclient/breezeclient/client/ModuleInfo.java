@@ -63,6 +63,7 @@ public final class ModuleInfo {
 		m("MaceBomber", "While falling onto a target, equips the mace, lines up and smashes for the fall bonus.");
 		m("ShieldBreaker", "When the target under your crosshair is blocking, switches to an axe (and optionally hits).");
 		m("ArmorTrimHider", "Hides or randomizes the armor trims you see on worn armor. Local rendering only.");
+		m("ScoreboardName", "Replaces your name with custom text (color codes supported) or hides your line, on the sidebar scoreboard (line, score text, title), the tab list, and chat/action bar lines. Only your name is replaced; scores and what others see are untouched.");
 		m("MotionBlur", "Cinematic motion blur by blending frames. Strength 1-5.");
 		m("CustomGlint", "Recolors the enchantment glint on items and armor, with an optional rainbow cycle. Local only.");
 		m("HitBox", "Your crosshair treats other entities as slightly wider. The server still uses the real hitbox and its own reach check, so keep it small.");

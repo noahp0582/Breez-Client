@@ -78,6 +78,7 @@ The look and layout are modelled on Meteor Client's, but all code here is origin
 | AimAssist, Triggerbot, HoverTotem, AnchorMacro, DoubleAnchor, MaceSwap, MaceBomber, ShieldBreaker, ElytraSwap | Combat helpers. Every attack goes through one safety gate that refuses targets a vanilla server kicks you for (yourself, items, XP orbs, arrows). |
 
 | ArmorTrimHider, CustomGlint, MotionBlur, Animations | Render-only changes you see locally: hide or randomize armor trims, recolor the enchant glint (rainbow option), frame-blend motion blur (strength 1-5), steadier first-person hands (no equip/cooldown dip, swing speed, hand offset and size). |
+| ScoreboardName | Replaces your own name with any text (with `&` color codes), or hides your sidebar line. Covers the sidebar line text, score text and title (custom stat boards), the tab list, and chat/action bar lines. Local display only; scores and numbers are never changed. |
 | NameTags | HUD-styled tags with health bar, distance and gear for players, names and counts for dropped items, visible through walls; can hide the vanilla tag. |
 | HitBox | Your crosshair treats other entities as a bit wider (default +0.15). The server still uses the real hitbox and its own reach check, so large values just produce rejected hits. |
 | CreamyKeys | Synthesized keyboard, mouse and scroll "thock" sounds, played outside Minecraft's sound engine. |

@@ -19,7 +19,13 @@
 		"MouseHandlerMixin",
 		"ItemInHandRendererMixin",
 		"LivingEntityMixin",
-		"AbstractClientPlayerMixin"
+		"AbstractClientPlayerMixin",
+		"GuiMixin",
+		"PlayerTeamMixin",
+		"ScoreboardMixin",
+		"PlayerTabOverlayMixin",
+		"PlayerScoreEntryMixin",
+		"ObjectiveMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
