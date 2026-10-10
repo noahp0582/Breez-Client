@@ -77,6 +77,8 @@ public final class ExtraTest {
 		if (ticks == 70) {
 			set("SusChunks", "Mode", breezeclient.breezeclient.client.modules.SusChunks.Mode.SIGNATURES);
 			set("ArmorTrimHider", "Mode", breezeclient.breezeclient.client.modules.ArmorTrimHider.Mode.HIDE);
+			set("TunnelFinder", "Chunks per second", 10.0);
+			breezeclient.breezeclient.client.gui.GuiState.CLIENT.friends.add("Steve");
 			set("HitBox", "Players only", false);
 			set("HitBox", "Show boxes", true);
 			set("CustomAccessories", "Trail", true);
@@ -84,7 +86,7 @@ public final class ExtraTest {
 			set("CustomAccessories", "Crown", true);
 			set("RegionMap", "Regions", List.of("spawn -50 -50 50 50"));
 			set("Animations", "Offset X", 0.1);
-			for (String n : List.of("ArmorTrimHider", "MotionBlur", "CustomGlint", "HitBox", "NameTags", "CreamyKeys", "CustomAccessories", "Animations", "RegionMap", "SusChunks")) {
+			for (String n : List.of("ArmorTrimHider", "MotionBlur", "CustomGlint", "HitBox", "NameTags", "CreamyKeys", "CustomAccessories", "Animations", "RegionMap", "SusChunks", "TunnelFinder", "CoverageMap", "ItemESP", "ChestLooter", "PlayerLogger")) {
 				Module m = BreezClientClient.MODULES.get(n);
 				if (m == null) LOG.add("MISSING module " + n);
 				else m.setEnabled(true);
@@ -109,6 +111,27 @@ public final class ExtraTest {
 			cmd(mc, "scoreboard players display name Alex breeztest {\"text\":\"Team: " + me + "\"}");
 			cmd(mc, "scoreboard players display numberformat Steve breeztest fixed {\"text\":\"owner " + me + "\"}");
 		}
+		if (ticks == 115) {
+			var pos = chestPos;
+			var hit = new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos), net.minecraft.core.Direction.UP, pos, false);
+			mc.gameMode.useItemOn(mc.player, net.minecraft.world.InteractionHand.MAIN_HAND, hit);
+		}
+		if (ticks == 150) {
+			LOG.add("chestLooter(block chest) netherite=" + count(mc, net.minecraft.world.item.Items.NETHERITE_INGOT) + " (expect 5)");
+			mc.player.closeContainer();
+		}
+		if (ticks == 160) {
+			for (var e : mc.level.entitiesForRendering()) {
+				if (e.getType() == EntityType.CHEST_MINECART) {
+					mc.gameMode.interact(mc.player, e, net.minecraft.world.InteractionHand.MAIN_HAND);
+					break;
+				}
+			}
+		}
+		if (ticks == 200) {
+			LOG.add("chestLooter(minecart menu) netherite=" + count(mc, net.minecraft.world.item.Items.NETHERITE_INGOT) + " (expect still 5: refused)");
+			mc.player.closeContainer();
+		}
 		if (ticks == 120) cmd(mc, "tellraw @a {\"text\":\"" + mc.player.getName().getString() + " received a payment\"}");
 		if (ticks == 124) for (Module m : BreezClientClient.MODULES.all()) m.setVisibleInHud(false);
 		if (ticks == 126) {
@@ -123,8 +146,21 @@ public final class ExtraTest {
 			// positive control: a spawner pile and a hopper-fed storage row far enough away to be evaluated
 			cmd(mc, "forceload add 200 0");
 			cmd(mc, "forceload add -200 0");
+			cmd(mc, "forceload add 100 40");
 		}
 		if (ticks == 100) {
+			// batch 1 controls in chunk (6,2): building blocks, lit campfire, an animal pen, armor stands and a corridor
+			cmd(mc, "fill 96 70 40 107 70 40 minecraft:white_concrete");
+			cmd(mc, "setblock 100 70 44 minecraft:campfire[lit=true]");
+			for (int i = 0; i < 14; i++) cmd(mc, "summon minecraft:cow " + (97 + i % 4) + " 72 " + (40 + i / 4) + " {NoAI:1b,Silent:1b,PersistenceRequired:1b}");
+			for (int i = 0; i < 3; i++) cmd(mc, "summon minecraft:armor_stand " + (110 + i) + " 72 41 {NoGravity:1b}");
+			cmd(mc, "fill 94 28 38 111 33 42 minecraft:stone");
+			cmd(mc, "fill 96 30 40 111 31 40 minecraft:air");
+			// batch 3: a chest with items for ChestLooter, and a chest minecart that must be refused
+			var pp = mc.player.blockPosition();
+			chestPos = pp.offset(2, 0, 1);
+			cmd(mc, "setblock " + chestPos.getX() + " " + chestPos.getY() + " " + chestPos.getZ() + " minecraft:chest{Items:[{Slot:0b,id:\"minecraft:netherite_ingot\",count:5},{Slot:1b,id:\"minecraft:dirt\",count:10}]}");
+			cmd(mc, "summon minecraft:chest_minecart " + (pp.getX() - 2) + " " + pp.getY() + " " + (pp.getZ() + 1) + " {NoGravity:1b,Items:[{Slot:0b,id:\"minecraft:netherite_ingot\",count:3}]}");
 			for (String c : List.of("200 40 0", "201 40 0", "200 40 1", "201 40 1", "202 40 0")) cmd(mc, "setblock " + c + " minecraft:spawner");
 			for (String c : List.of("-200 40 0", "-199 40 0", "-198 40 0", "-197 40 0")) cmd(mc, "setblock " + c + " minecraft:hopper");
 			for (String c : List.of("-200 41 0", "-199 41 0", "-198 41 0")) cmd(mc, "setblock " + c + " minecraft:chest");
@@ -136,15 +172,58 @@ public final class ExtraTest {
 		if (ticks == 175) shot(mc);
 		if (ticks == 910) {
 			check(mc);
+			autoLogProbe(mc);
+		}
+		if (ticks == 1000) {
+			append("autoLogDisconnected=false");
 			mc.stop();
 		}
 	}
 
+	private static net.minecraft.core.BlockPos chestPos;
+
+	private static int count(Minecraft mc, net.minecraft.world.item.Item item) {
+		int n = 0;
+		for (int i = 0; i < mc.player.getInventory().getContainerSize(); i++) {
+			var st = mc.player.getInventory().getItem(i);
+			if (st.is(item)) n += st.getCount();
+		}
+		return n;
+	}
+
+	private static void append(String line) {
+		try {
+			Files.writeString(FabricLoader.getInstance().getGameDir().resolve("extra-test.txt"), line + "\n", java.nio.file.StandardOpenOption.APPEND);
+		} catch (Exception ignored) {
+			// nothing else to do
+		}
+	}
+
+	/** Last step: a totem pop with AutoLog (pops=1) must disconnect. Reported through the disconnect event. */
+	private static void autoLogProbe(Minecraft mc) {
+		append("webhookUrl good=" + breezeclient.breezeclient.client.modules.AlertWebhook.validUrl("https://discord.com/api/webhooks/1/abc")
+			+ " other-host=" + breezeclient.breezeclient.client.modules.AlertWebhook.validUrl("https://example.com/api/webhooks/1/abc")
+			+ " http=" + breezeclient.breezeclient.client.modules.AlertWebhook.validUrl("http://discord.com/api/webhooks/1/abc"));
+		ClientPlayConnectionEvents.DISCONNECT.register((h, c) -> {
+			append("autoLogDisconnected=true");
+			Minecraft.getInstance().execute(() -> Minecraft.getInstance().stop());
+		});
+		set("AutoLog", "Health at or below", 0.0);
+		set("AutoLog", "Totem pops", 1.0);
+		set("AutoLog", "In lava", false);
+		BreezClientClient.MODULES.get("AutoLog").setEnabled(true);
+		mc.gameRenderer.displayItemActivation(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TOTEM_OF_UNDYING));
+	}
+
 	private static void susReport(String mode) {
+		LOG.add("tunnelRuns in chunk (6,2) = " + breezeclient.breezeclient.client.modules.TunnelFinder.runsIn(6, 2).size()
+			+ ", coverage chunks=" + breezeclient.breezeclient.client.world.CoverageTracker.count()
+			+ ", friend steve=" + breezeclient.breezeclient.client.modules.Friends.is("Steve"));
 		var top = breezeclient.breezeclient.client.modules.SusChunks.top(500);
 		LOG.add("SusChunks[" + mode + "] flagged " + top.size() + " chunks");
 		for (var r : top.subList(0, Math.min(8, top.size()))) {
 			LOG.add(String.format("  %.0f  %s  chunk (%d,%d)", r.score(), r.label(), r.chunkX(), r.chunkZ()));
+			for (String a : r.all()) LOG.add("      - " + a);
 		}
 	}
 

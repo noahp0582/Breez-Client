@@ -37,7 +37,7 @@ Drop the jar from `build/libs` (not the `-sources` one) into `.minecraft/mods` t
 | BlockESP | ESP for any block ids you choose: `.blockesp add minecraft:diamond_ore`. |
 | OreFinder | Scan-based ore ESP for what the server actually sent. Includes ancient debris. |
 | SeedOres | Seed-based ore prediction for chunks the server hid behind anti-xray. `.seed <seed>`, enable SeedOres. |
-| SusChunks | Finds player bases by specific signatures instead of a generic score: tight spawner stacks, spawners next to hoppers or redstone, hopper-fed storage, big storage rooms, ender chests, beacons and blocks of netherite/diamond/emerald. Villages, mineshafts, dungeons, strongholds, ancient cities, trial chambers, fortresses and bastions are recognized from their blocks and the weaker signatures are skipped around them. Presets: SPAWNER_BASES (default), ALL_BASES, STORAGE, FARMS, CUSTOM; minimums, threshold and max highlights are settings. The old weighted scoring is still there as Mode WEIGHTED. `.sus` lists the top chunks with the reason. |
+| SusChunks | Finds player bases by specific signatures instead of a generic score: tight spawner stacks, spawners next to hoppers or redstone, hopper-fed storage, big storage rooms, ender chests, beacons and blocks of netherite/diamond/emerald. Villages, mineshafts, dungeons, strongholds, ancient cities, trial chambers, fortresses and bastions are recognized from their blocks and the weaker signatures are skipped around them. Also looks for concrete/glass/quartz building blocks, lit furnaces and campfires, packed animal pens, villager cells, armor stand and item frame walls, and (with TunnelFinder on) straight tunnels. Presets: SPAWNER_BASES (default), ALL_BASES, STORAGE, FARMS, CUSTOM; minimums, threshold and max highlights are settings. The old weighted scoring is still there as Mode WEIGHTED. `.sus` lists the top chunks with the reason. |
 | PlayerESP | Boxes, tracers, and through-walls nametags with health and distance. |
 | Freecam | Detached camera. Your real player stands still and cannot attack or place. |
 | Fullbright | Local night vision. |
@@ -57,6 +57,7 @@ Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD)
 Left click a module toggles it, right click opens its settings page (grouped, collapsible sections, tooltips, per-setting reset,
 color picker, list editors with block/item search, key bind, hold-to-enable). `Ctrl+F` focuses the module search.
 - **GUI tab:** accent/text/background colors, opacity, scale, rounded corners, animation speed, HUD module-list side, toast settings, reset layout.
+- **Friends:** `.friend add|remove|list` (green in PlayerESP/NameTags, never trigger KillSwitch); also editable in the Config tab.
 - **Config tab:** command prefix, humanization delay scale, camera turn speed, announce-all-toggles, "Alerts in chat" (off by default: finds show as merged pop-ups instead of filling chat).
 - **Profiles tab:** per-server world seed and staff list. **Macros tab:** create, edit, bind, run macros. **HUD tab:** drag HUD elements.
 - Toasts (pop-ups) replace chat spam; every module can announce toggles with its own "Chat feedback" switch.
@@ -78,6 +79,13 @@ The look and layout are modelled on Meteor Client's, but all code here is origin
 | AimAssist, Triggerbot, HoverTotem, AnchorMacro, DoubleAnchor, MaceSwap, MaceBomber, ShieldBreaker, ElytraSwap | Combat helpers. Every attack goes through one safety gate that refuses targets a vanilla server kicks you for (yourself, items, XP orbs, arrows). |
 
 | ArmorTrimHider, CustomGlint, MotionBlur, Animations | Render-only changes you see locally: hide or randomize armor trims, recolor the enchant glint (rainbow option), frame-blend motion blur (strength 1-5), steadier first-person hands (no equip/cooldown dip, swing speed, hand offset and size). |
+| TunnelFinder | Long straight 1x2 corridors underground (strip mines and dug hallways), scanned a few chunks per second; also adds a "Straight tunnel" signature to SusChunks. |
+| CoverageMap | HUD map of chunks you have already had loaded per server and dimension; `.coverage stats\|export\|clear`. |
+| AutoLog | Disconnects at low health, after N totem pops within 60 s, or in lava; auto-reconnect stays off unless you allow it. |
+| AlertWebhook | Posts finds, KillSwitch/AutoLog events and disconnects to a Discord webhook URL you set (Discord addresses only; the URL is a secret). |
+| ItemESP | Dropped valuables (spawners, shulker boxes, netherite and more) from a list with `*` wildcards. |
+| ChestLooter | Shift-clicks listed items out of a container you opened by hand, humanized. It only works on menus opened from a real container block, never on server shop or menu screens. |
+| PlayerLogger | Join/leave log to `players.csv` and last-seen positions: `.players [name]`. |
 | ScoreboardName | Replaces your own name with any text (with `&` color codes), or hides your sidebar line. Covers the sidebar line text, score text and title (custom stat boards), the tab list, and chat/action bar lines. Local display only; scores and numbers are never changed. |
 | NameTags | HUD-styled tags with health bar, distance and gear for players, names and counts for dropped items, visible through walls; can hide the vanilla tag. |
 | HitBox | Your crosshair treats other entities as a bit wider (default +0.15). The server still uses the real hitbox and its own reach check, so large values just produce rejected hits. |

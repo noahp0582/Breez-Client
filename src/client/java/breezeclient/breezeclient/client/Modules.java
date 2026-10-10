@@ -2,6 +2,13 @@ package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.modules.AmethystDetector;
 import breezeclient.breezeclient.client.modules.ScoreboardName;
+import breezeclient.breezeclient.client.modules.TunnelFinder;
+import breezeclient.breezeclient.client.modules.AutoLog;
+import breezeclient.breezeclient.client.modules.AlertWebhook;
+import breezeclient.breezeclient.client.modules.ItemEsp;
+import breezeclient.breezeclient.client.modules.ChestLooter;
+import breezeclient.breezeclient.client.modules.PlayerLogger;
+import breezeclient.breezeclient.client.modules.CoverageMap;
 import breezeclient.breezeclient.client.modules.ArmorTrimHider;
 import breezeclient.breezeclient.client.modules.MotionBlur;
 import breezeclient.breezeclient.client.modules.CustomGlint;
@@ -106,6 +113,16 @@ public final class Modules {
 		m.register(new MaceModules.ShieldBreaker());
 		m.register(new ArmorTrimHider());
 		m.register(new ScoreboardName());
+		m.register(new TunnelFinder());
+		m.register(new CoverageMap());
+		m.register(new AutoLog());
+		m.register(new AlertWebhook());
+		AlertWebhook.registerEvents();
+		m.register(new ItemEsp());
+		m.register(new ChestLooter());
+		ChestLooter.registerEvents();
+		m.register(new PlayerLogger());
+		CoverageMap.registerEvents();
 		m.register(new MotionBlur());
 		m.register(new CustomGlint());
 		m.register(new HitBox());
@@ -329,6 +346,60 @@ public final class Modules {
 			}
 		});
 		c.register(new Command() {
+			public String name() { return "coverage"; }
+			public String usage() { return "coverage [stats|export|clear]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				String sub = a.length == 0 ? "stats" : a[0].toLowerCase();
+				switch (sub) {
+					case "stats" -> reply.accept("Chunks seen on this server and dimension: " + breezeclient.breezeclient.client.world.CoverageTracker.count());
+					case "clear" -> {
+						breezeclient.breezeclient.client.world.CoverageTracker.clearCurrent();
+						reply.accept("Coverage cleared for this server and dimension.");
+					}
+					case "export" -> {
+						try {
+							reply.accept("Saved " + breezeclient.breezeclient.client.world.CoverageTracker.export());
+						} catch (java.io.IOException e) {
+							reply.accept("Could not write the file: " + e.getMessage());
+						}
+					}
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "friend"; }
+			public String usage() { return "friend <add|remove> <name> | friend list"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var list = breezeclient.breezeclient.client.gui.GuiState.CLIENT.friends;
+				String sub = a.length == 0 ? "list" : a[0].toLowerCase();
+				switch (sub) {
+					case "list" -> reply.accept(list.get().isEmpty() ? "No friends yet. " + usage() : "Friends: " + String.join(", ", list.get()));
+					case "add" -> reply.accept(a.length > 1 ? (list.add(a[1]) ? "Added " + a[1] : a[1] + " is already a friend.") : "Usage: " + usage());
+					case "remove" -> reply.accept(a.length > 1 ? (list.remove(a[1]) ? "Removed " + a[1] : a[1] + " is not a friend.") : "Usage: " + usage());
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "players"; }
+			public String usage() { return "players [name]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				if (a.length > 0) {
+					var s = PlayerLogger.find(a[0]);
+					reply.accept(s == null ? "No sighting of " + a[0] + " yet (is PlayerLogger on?)."
+						: s.name() + " last seen at " + s.x() + " " + s.y() + " " + s.z() + " in " + s.dim()
+						+ ", " + (System.currentTimeMillis() - s.time()) / 1000 + " s ago");
+					return;
+				}
+				var recent = PlayerLogger.recent();
+				if (recent.isEmpty()) reply.accept("No players seen yet (turn PlayerLogger on).");
+				for (var s : recent.subList(0, Math.min(15, recent.size()))) {
+					reply.accept(s.name() + "  " + s.x() + " " + s.y() + " " + s.z() + "  " + (System.currentTimeMillis() - s.time()) / 1000 + " s ago");
+				}
+			}
+		});
+		c.register(new Command() {
 			public String name() { return "alerts"; }
 			public String usage() { return "alerts [count]"; }
 			public void run(String[] a, Consumer<String> reply) {
@@ -378,6 +449,7 @@ public final class Modules {
 				for (var r : top) {
 					var p = r.center();
 					reply.accept(String.format("%.0f  %s  chunk (%d,%d) at %d %d %d", r.score(), r.label(), r.chunkX(), r.chunkZ(), p.getX(), p.getY(), p.getZ()));
+					if (r.all().size() > 1) for (String line : r.all()) reply.accept("    - " + line);
 				}
 			}
 		});

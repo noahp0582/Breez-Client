@@ -64,6 +64,13 @@ public final class ModuleInfo {
 		m("ShieldBreaker", "When the target under your crosshair is blocking, switches to an axe (and optionally hits).");
 		m("ArmorTrimHider", "Hides or randomizes the armor trims you see on worn armor. Local rendering only.");
 		m("ScoreboardName", "Replaces your name with custom text (color codes supported) or hides your line, on the sidebar scoreboard (line, score text, title), the tab list, and chat/action bar lines. Only your name is replaced; scores and what others see are untouched.");
+		m("TunnelFinder", "Finds long straight 1x2 corridors underground (strip mines, dug hallways) that natural caves do not have. Also feeds SusChunks.");
+		m("CoverageMap", "HUD map of which chunks you have already had loaded on this server and dimension, so a long hunt does not repeat ground.");
+		m("AutoLog", "Disconnects when your health is low, after totem pops, or when you are in lava.");
+		m("AlertWebhook", "Posts finds, KillSwitch/AutoLog events and disconnects to a Discord webhook you set. Only the alert text and server address are sent, only to that URL.");
+		m("ItemESP", "Highlights dropped valuable items (spawners, shulker boxes, netherite and more) from a list with wildcards.");
+		m("ChestLooter", "Shift-clicks listed items out of a container you opened by hand, at a randomized pace. Refuses server menus that were not opened from a container block.");
+		m("PlayerLogger", "Logs players joining and leaving and where each was last seen, to players.csv. Use .players [name].");
 		m("MotionBlur", "Cinematic motion blur by blending frames. Strength 1-5.");
 		m("CustomGlint", "Recolors the enchantment glint on items and armor, with an optional rainbow cycle. Local only.");
 		m("HitBox", "Your crosshair treats other entities as slightly wider. The server still uses the real hitbox and its own reach check, so keep it small.");
