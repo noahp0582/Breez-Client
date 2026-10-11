@@ -29,7 +29,7 @@ public class TrailFinder extends Module {
 	private boolean announced;
 	private int ticks;
 
-	public TrailFinder() { super("TrailFinder", Category.WORLD); }
+	public TrailFinder() { super("TrailFinder", Category.BASE_FINDING); }
 
 	@Override
 	protected void onDisable() {

@@ -27,7 +27,10 @@ public class AntiAfk extends Module {
 	protected void onEnable() { wait = next(); }
 
 	@Override
-	protected void onDisable() { Minecraft.getInstance().options.keyJump.setDown(false); }
+	protected void onDisable() {
+		if (jumpTicks > 0 && Minecraft.getInstance().options != null) net.minecraft.client.KeyMapping.setAll();
+		jumpTicks = 0;
+	}
 
 	private int next() { return limiter.nextDelayTicks(interval.get() * 20, interval.get() * 5, 60); }
 
@@ -35,7 +38,7 @@ public class AntiAfk extends Module {
 	protected void onTick() {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null) return;
-		if (jumpTicks > 0 && --jumpTicks == 0) mc.options.keyJump.setDown(false);
+		if (jumpTicks > 0 && --jumpTicks == 0) net.minecraft.client.KeyMapping.setAll();
 		if (--wait > 0 || RotationController.busy() || mc.screen != null) return;
 		wait = next();
 		if (jump.get() && limiter.chance(0.3)) {

@@ -43,6 +43,29 @@ class ModuleManagerTest {
 		assertEquals(1, p.disables);
 	}
 
+	static class OneShot extends Module {
+		OneShot() { super("oneshot", Category.MISC); }
+		@Override protected void onEnable() { setEnabled(false); }
+	}
+
+	@Test
+	void aModuleThatSwitchesItselfOffWhileEnablingIsNotAnnounced() {
+		List<String> events = new ArrayList<>();
+		Module.setListener((m, on) -> events.add(m.name() + ":" + on));
+		try {
+			OneShot s = new OneShot();
+			s.setEnabled(true);
+			assertFalse(s.enabled());
+			assertTrue(events.isEmpty(), "got " + events);
+			Probe p = new Probe("normal");
+			p.setEnabled(true);
+			p.setEnabled(false);
+			assertEquals(List.of("normal:true", "normal:false"), events);
+		} finally {
+			Module.setListener(null);
+		}
+	}
+
 	@Test
 	void tickOnlyEnabled() {
 		ModuleManager m = new ModuleManager();

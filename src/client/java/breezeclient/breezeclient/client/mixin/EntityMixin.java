@@ -27,7 +27,8 @@ public abstract class EntityMixin {
 	/** HitBox widens the targeting radius of other entities (your own crosshair only). */
 	@Inject(method = "getPickRadius", at = @At("RETURN"), cancellable = true)
 	private void breez$pick(CallbackInfoReturnable<Float> cir) {
-		float extra = breezeclient.breezeclient.client.modules.HitBox.pickRadius((Entity) (Object) this);
+		float extra = breezeclient.breezeclient.client.modules.HitBox.pickRadius((Entity) (Object) this)
+			+ breezeclient.breezeclient.client.modules.CombatTweaks.StaticHitBoxes.pickRadius((Entity) (Object) this);
 		if (extra > 0) cir.setReturnValue(cir.getReturnValue() + extra);
 	}
 }

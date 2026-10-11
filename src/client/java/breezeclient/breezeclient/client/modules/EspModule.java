@@ -39,6 +39,9 @@ public abstract class EspModule extends Module {
 	/** Called once per newly found position (rate limited). Default: nothing. */
 	protected void onFound(BlockPos pos, BlockState state) {}
 
+	/** Whether a found block is shown at all (for modules with a rule the block state alone cannot express). */
+	protected boolean accept(BlockPos pos, BlockState state) { return true; }
+
 	@Override
 	protected void onEnable() {
 		target = createTarget();
@@ -88,6 +91,7 @@ public abstract class EspModule extends Module {
 		boolean doFill = fill.get() && f instanceof RenderUtil;
 		target.forEachWithin(pos, range.get(), p -> {
 			BlockState s = mc.level.getBlockState(p);
+			if (!accept(p, s)) return;
 			int color = colorOf(s);
 			double e = 0.002;
 			f.drawBox(p.getX() - e, p.getY() - e, p.getZ() - e, p.getX() + 1 + e, p.getY() + 1 + e, p.getZ() + 1 + e, color | 0xFF000000);

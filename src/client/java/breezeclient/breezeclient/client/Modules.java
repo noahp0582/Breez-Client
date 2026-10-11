@@ -1,6 +1,14 @@
 package breezeclient.breezeclient.client;
 
 import breezeclient.breezeclient.client.modules.AmethystDetector;
+import breezeclient.breezeclient.client.modules.CombatTweaks;
+import breezeclient.breezeclient.client.modules.DefenseModules;
+import breezeclient.breezeclient.client.modules.ClientModules;
+import breezeclient.breezeclient.client.modules.BaseFindingModules;
+import breezeclient.breezeclient.client.modules.RenderModules;
+import breezeclient.breezeclient.client.modules.DonutModules;
+import breezeclient.breezeclient.client.modules.MovementModules;
+import breezeclient.breezeclient.client.modules.UtilityModules;
 import breezeclient.breezeclient.client.modules.ScoreboardName;
 import breezeclient.breezeclient.client.modules.TunnelFinder;
 import breezeclient.breezeclient.client.modules.AutoLog;
@@ -111,6 +119,50 @@ public final class Modules {
 		m.register(new MaceModules.MaceSwap());
 		m.register(new MaceModules.MaceBomber());
 		m.register(new MaceModules.ShieldBreaker());
+		m.register(new DefenseModules.AutoDoubleHand());
+		m.register(new DefenseModules.AutoInvTotem());
+		m.register(new DefenseModules.TotemOffhand());
+		m.register(new DefenseModules.AutoJumpReset());
+		m.register(new CombatTweaks.NoHitDelay());
+		m.register(new CombatTweaks.CrystalOptimizer());
+		CombatTweaks.CrystalOptimizer.registerEvents();
+		m.register(new CombatTweaks.StaticHitBoxes());
+		m.register(new CombatTweaks.SpearSwap());
+		CombatTweaks.SpearSwap.registerEvents();
+		m.register(new CombatTweaks.AutoHitCrystal());
+		m.register(new MovementModules.Sprint());
+		m.register(new MovementModules.ElytraGlide());
+		m.register(new MovementModules.AutoFirework());
+		m.register(new MovementModules.KeyPearl());
+		m.register(new MovementModules.KeyWindCharge());
+		m.register(new UtilityModules.AutoMine());
+		m.register(new UtilityModules.AutoTool());
+		m.register(new UtilityModules.Fakeplayer());
+		m.register(new UtilityModules.ItemDropper());
+		m.register(new UtilityModules.AntiTrap());
+		m.register(new DonutModules.AutoSell());
+		m.register(new DonutModules.AutoSpawnerSell());
+		m.register(new DonutModules.ChunkFinder());
+		m.register(new DonutModules.NetheriteFinder());
+		m.register(new DonutModules.PlayerChunks());
+		m.register(new RenderModules.BlockNotifier());
+		m.register(new RenderModules.PearlTrajectory());
+		m.register(new RenderModules.RealHitBox());
+		m.register(new RenderModules.TargetHud());
+		RenderModules.TargetHud.registerEvents();
+		m.register(new RenderModules.MusicHud());
+		RenderModules.MusicHud.registerEvents();
+		m.register(new BaseFindingModules.BlockEntityDebug());
+		BaseFindingModules.BlockEntityDebug.registerHud();
+		m.register(new BaseFindingModules.LightFinder());
+		m.register(new BaseFindingModules.SuspiciousEsp());
+		m.register(new BaseFindingModules.TunnelBaseFinder());
+		m.register(new BaseFindingModules.PrimeChunkFinder());
+		m.register(new BaseFindingModules.RtpBaseFinder());
+		m.register(new BaseFindingModules.SeedChunkFinder());
+		m.register(new ClientModules.DiscordPresence());
+		m.register(new ClientModules.ProxyModule());
+		m.register(new ClientModules.Radio());
 		m.register(new ArmorTrimHider());
 		m.register(new ScoreboardName());
 		m.register(new TunnelFinder());
@@ -179,6 +231,10 @@ public final class Modules {
 		if (spawnerPickup != null) spawnerPickup.setEnabled(false);
 		if (builder != null) builder.setEnabled(false);
 		for (var m : BreezClientClient.macros.all()) m.setEnabled(false);
+		for (String n : new String[] {"AutoMine", "AutoWalk", "ItemDropper", "AutoSell", "RTPBaseFinder", "ElytraGlide"}) {
+			var mod = BreezClientClient.MODULES.get(n);
+			if (mod != null) mod.setEnabled(false);
+		}
 		Freecam.reset();
 		breezeclient.breezeclient.client.nav.Baritone.stop(null);
 	}
@@ -189,6 +245,54 @@ public final class Modules {
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
 		breezeclient.breezeclient.client.nav.NavCommands.register(c);
+		c.register(new Command() {
+			public String name() { return "detection"; }
+			public String usage() { return "detection [undetected|risk|detected]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var all = breezeclient.breezeclient.client.BreezClientClient.MODULES.all();
+				if (a.length == 0) {
+					for (var d : breezeclient.breezeclient.core.Detection.values()) {
+						java.util.List<String> names = new java.util.ArrayList<>();
+						for (var m : all) if (m.detection() == d) names.add(m.name());
+						if (d == breezeclient.breezeclient.core.Detection.UNDETECTED) reply.accept(d.label() + ": " + names.size() + " modules (" + c.prefix() + "detection undetected lists them)");
+						else reply.accept(d.label() + " (" + names.size() + "): " + (names.isEmpty() ? "-" : String.join(", ", names)));
+					}
+					return;
+				}
+				var d = breezeclient.breezeclient.core.Detection.parse(String.join(" ", a));
+				if (d == null) { reply.accept("Usage: " + usage()); return; }
+				java.util.List<String> names = new java.util.ArrayList<>();
+				for (var m : all) if (m.detection() == d) names.add(m.name());
+				java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+				reply.accept(d.label() + " (" + names.size() + "): " + String.join(", ", names));
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "prime"; }
+			public String usage() { return "prime [count]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				int n = 10;
+				if (a.length > 0) {
+					try { n = Math.max(1, Math.min(50, Integer.parseInt(a[0]))); } catch (NumberFormatException e) { reply.accept("Usage: " + usage()); return; }
+				}
+				var top = BaseFindingModules.PrimeChunkFinder.top(n);
+				if (top.isEmpty()) reply.accept("No prime chunks (is PrimeChunkFinder enabled?).");
+				for (var r : top) reply.accept("score " + r.score() + " chunk (" + r.chunkX() + "," + r.chunkZ() + ") at " + (r.chunkX() * 16 + 8) + " " + r.y() + " " + (r.chunkZ() * 16 + 8) + ": " + String.join(", ", r.reasons()));
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "chunkfinder"; }
+			public String usage() { return "chunkfinder [count]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				int n = 10;
+				if (a.length > 0) {
+					try { n = Math.max(1, Math.min(50, Integer.parseInt(a[0]))); } catch (NumberFormatException e) { reply.accept("Usage: " + usage()); return; }
+				}
+				var top = DonutModules.ChunkFinder.top(n);
+				if (top.isEmpty()) reply.accept("No chunks flagged (is ChunkFinder enabled?).");
+				for (var r : top) { var p = r.center(); reply.accept(r.count() + " blocks, chunk (" + r.chunkX() + "," + r.chunkZ() + ") at " + p.getX() + " " + p.getY() + " " + p.getZ()); }
+			}
+		});
 		c.register(new Command() {
 			public String name() { return "chunks"; }
 			public String usage() { return "chunks <stats|export|clear>"; }

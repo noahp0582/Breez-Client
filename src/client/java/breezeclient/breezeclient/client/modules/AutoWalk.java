@@ -28,8 +28,6 @@ public class AutoWalk extends Module {
 	protected void onDisable() {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.options == null) return;
-		mc.options.keyUp.setDown(false);
-		mc.options.keySprint.setDown(false);
-		mc.options.keyJump.setDown(false);
+		net.minecraft.client.KeyMapping.setAll(); // back to what your fingers are actually holding
 	}
 }

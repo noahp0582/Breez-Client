@@ -26,7 +26,7 @@ public class NewChunks extends Module {
 	private final ColorSetting newColor = add(new ColorSetting("New color", 0xFFFF3030), "Colors", "Color of new chunks.");
 	private final ColorSetting oldColor = add(new ColorSetting("Old color", 0xFF30E060), "Colors", "Color of old chunks.");
 
-	public NewChunks() { super("NewChunks", Category.WORLD); }
+	public NewChunks() { super("NewChunks", Category.BASE_FINDING); }
 
 	@Override
 	protected void onTick() { ChunkAgeTracker.setStrict(strict.get()); }

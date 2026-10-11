@@ -34,6 +34,25 @@ public class ModuleScreen extends BreezScreen {
 		win.maxH = vh - TAB_H - 24;
 		win.moveTo((vw - w) / 2, TAB_H + 14);
 		if (!module.description().isBlank()) win.content.add(new Paragraph(module.description(), true));
+		win.content.add(new Widget() {
+			@Override
+			public int layout(Gfx g, int x, int y, int w) {
+				this.x = x;
+				this.y = y;
+				this.w = w;
+				this.h = Controls.ROW_H;
+				return h;
+			}
+
+			@Override
+			public void render(Gfx g, int mx, int my) {
+				var d = module.detection();
+				g.text("Detection", x + 2, y + 2, g.text());
+				g.rect(x + (int) (w * 0.4), y + 3, 6, 6, d.color());
+				g.text(d.label(), x + (int) (w * 0.4) + 10, y + 2, d.color());
+				if (g.in(mx, my, x, y, w, h)) Widget.pendingTooltip = "How likely a server's anti-cheat or staff are to notice this module. A rating, not a guarantee.";
+			}
+		});
 		win.content.add(new Controls.Checkbox(module::enabled, b -> module.setEnabled(b)) {
 			@Override
 			public void render(Gfx g, int mx, int my) {

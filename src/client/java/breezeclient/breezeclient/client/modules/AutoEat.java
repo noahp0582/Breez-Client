@@ -61,7 +61,7 @@ public class AutoEat extends Module {
 	}
 
 	private void stopEating(Minecraft mc) {
-		mc.options.keyUse.setDown(false);
+		if (savedSlot >= 0 || ticksEating > 0) net.minecraft.client.KeyMapping.setAll();
 		if (savedSlot >= 0 && mc.player != null) mc.player.getInventory().setSelectedSlot(savedSlot);
 		savedSlot = -1;
 	}

@@ -49,7 +49,7 @@ public class TunnelFinder extends Module {
 	private int ticks;
 
 	public TunnelFinder() {
-		super("TunnelFinder", Category.WORLD);
+		super("TunnelFinder", Category.BASE_FINDING);
 		instance = this;
 	}
 

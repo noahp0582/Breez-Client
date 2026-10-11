@@ -2,6 +2,7 @@ package breezeclient.breezeclient.client.gui;
 
 import breezeclient.breezeclient.client.BreezClientClient;
 import breezeclient.breezeclient.core.Category;
+import breezeclient.breezeclient.core.Detection;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.gui.Fuzzy;
 import net.minecraft.client.Minecraft;
@@ -44,11 +45,13 @@ public class ModulesScreen extends BreezScreen {
 			else if (hov) g.rrect(x, y, w, h, g.hover());
 			String key = module.key() >= 0 ? Controls.KeyBind.keyName(module.key()) : "";
 			int keyW = key.isEmpty() ? 0 : g.width(key) + 6;
-			g.text(g.fit(module.name(), w - keyW - 6), x + 4, y + 2, module.enabled() ? g.text() : g.dim() | 0xFF000000);
+			g.rect(x, y + 1, 2, h - 2, module.detection().color()); // detection badge: green / amber / red
+			g.text(g.fit(module.name(), w - keyW - 8), x + 6, y + 2, module.enabled() ? g.text() : g.dim() | 0xFF000000);
 			if (!key.isEmpty()) g.text(key, x + w - g.width(key) - 3, y + 2, module.enabled() ? g.text() : g.dim());
 			if (hov) {
 				String d = module.description();
-				Widget.pendingTooltip = d.isBlank() ? module.name() : d;
+				String status = "[" + module.detection().label() + "] ";
+				Widget.pendingTooltip = status + (d.isBlank() ? module.name() : d);
 			}
 		}
 
@@ -107,7 +110,17 @@ public class ModulesScreen extends BreezScreen {
 	}
 
 	@Override
-	protected void renderOverlay(Gfx g, int mx, int my) { search.render(g, mx, my); }
+	protected void renderOverlay(Gfx g, int mx, int my) {
+		search.render(g, mx, my);
+		// legend for the colored strip on every module
+		int lx = Math.max(8, (vw - 230) / 2), ly = vh - 11;
+		g.rect(lx - 6, ly - 2, 242, 12, 0xC0101018); // backing, so the labels stay readable over module windows
+		for (Detection d : Detection.values()) {
+			g.rect(lx, ly + 1, 6, 6, d.color());
+			g.text(d.label(), lx + 9, ly, g.dim());
+			lx += 9 + g.width(d.label()) + 12;
+		}
+	}
 
 	@Override
 	protected boolean onTabBarClick(int mx, int my, int button) { return search.click(mx, my, button); }

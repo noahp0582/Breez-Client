@@ -102,7 +102,7 @@ public class SusChunks extends Module {
 	private ClientLevel seenLevel;
 
 	public SusChunks() {
-		super("SusChunks", Category.WORLD);
+		super("SusChunks", Category.BASE_FINDING);
 		instance = this;
 		for (Signature sig : Signature.values()) {
 			custom.put(sig, add(new BoolSetting("Find: " + sig.label(), sig != Signature.REDSTONE && sig != Signature.STORAGE_ROOM), "Custom signatures",

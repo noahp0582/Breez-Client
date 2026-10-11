@@ -65,7 +65,7 @@ public class StashFinder extends Module {
 	private int ticks;
 
 	public StashFinder() {
-		super("StashFinder", Category.WORLD);
+		super("StashFinder", Category.BASE_FINDING);
 		instance = this;
 	}
 

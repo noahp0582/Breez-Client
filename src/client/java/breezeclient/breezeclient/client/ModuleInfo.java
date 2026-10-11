@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client;
 
+import breezeclient.breezeclient.core.Detection;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.settings.Setting;
 
@@ -21,6 +22,36 @@ public final class ModuleInfo {
 
 	private static void s(String module, String setting, String group, String description) {
 		SETTINGS.put((module + "|" + setting).toLowerCase(), new String[] {group, description});
+	}
+
+	/** Modules that are not Undetected. Everything not listed here is Undetected. */
+	private static final Map<String, Detection> DETECTION = new HashMap<>();
+
+	private static void d(String module, Detection d) { DETECTION.put(module.toLowerCase(), d); }
+
+	/** The rating for a module name; Undetected when none was set. */
+	public static Detection detectionOf(String module) {
+		return DETECTION.getOrDefault(module.toLowerCase(), Detection.UNDETECTED);
+	}
+
+	static {
+		// Rated by what each module sends to
+		// the server and how visible it is: pure rendering and local-only modules are Undetected, anything that places,
+		// breaks, clicks or paths on its own at speed is Use at Risk.
+		d("HitBox", Detection.DETECTED);
+		d("TunnelBaseFinder", Detection.DETECTED);
+		d("TotemMacro", Detection.USE_AT_RISK);
+		d("AutoInvTotem", Detection.USE_AT_RISK);
+		d("StaticHitBoxes", Detection.USE_AT_RISK);
+		d("RTPBaseFinder", Detection.USE_AT_RISK);
+		d("SchematicBuilder", Detection.USE_AT_RISK);
+		d("SpawnerPickup", Detection.USE_AT_RISK);
+		d("ChestLooter", Detection.USE_AT_RISK);
+		d("Baritone", Detection.USE_AT_RISK);
+		d("AntiTrap", Detection.USE_AT_RISK);
+		d("ItemDropper", Detection.USE_AT_RISK);
+		d("AutoSell", Detection.USE_AT_RISK);
+		d("AutoSpawnerSell", Detection.USE_AT_RISK);
 	}
 
 	static {
@@ -97,6 +128,46 @@ public final class ModuleInfo {
 		m("SpawnerPickup", "Walks to spawners, mines them with a silk touch pickaxe, then moves only the spawners into your ender chest.");
 		m("SchematicBuilder", "Builds a loaded schematic layer by layer with eased camera movement. Use .build load / origin / start.");
 
+		m("AutoDoubleHand", "When your health runs low and a totem is in the offhand, also holds a totem in the main hand so one pop never leaves you empty-handed.");
+		m("AutoInvTotem", "While your inventory is open, moves a totem into the offhand (and optionally a hotbar slot) with ordinary clicks.");
+		m("TotemOffhand", "Puts a hotbar totem into the offhand with the swap-hands action when the offhand empties, then returns to your slot.");
+		m("AutoJumpReset", "Jumps the tick you take a hit while on the ground, so some of the knockback becomes upward motion.");
+		m("NoHitDelay", "Removes the ten-tick pause vanilla puts on your attack button after swinging at nothing.");
+		m("CrystalOptimizer", "Removes an end crystal from your screen the moment you hit it, so you can place and target the next one without waiting for the server.");
+		m("StaticHitBoxes", "Your crosshair keeps seeing players at standing height while they sneak, crawl or swim. Targeting only; the server uses the real box.");
+		m("SpearSwap", "Switches to a spear when you attack something, then back to the slot you had.");
+		m("AutoHitCrystal", "Breaks any end crystal under your crosshair once it is in reach, after a short random delay. Never places anything.");
+		m("Sprint", "Holds sprint while you move forward.");
+		m("ElytraGlide", "While gliding, cycles dive and climb to keep speed and height without fireworks. Bind it and toggle in the air.");
+		m("AutoFirework", "While gliding, fires a firework rocket from your hotbar or offhand whenever you slow down.");
+		m("KeyPearl", "Bind to a key: each press throws an ender pearl from your hotbar, then returns to your slot.");
+		m("KeyWindCharge", "Bind to a key: each press throws a wind charge from your hotbar, then returns to your slot.");
+		m("AutoMine", "Holds the attack button while your crosshair is on a block that is safe to break. Containers, spawners and unbreakable blocks are skipped.");
+		m("AutoTool", "Switches to the fastest tool in your hotbar for the block you are breaking, and back when you stop.");
+		m("Fakeplayer", "Spawns a client-side copy of a player where you stand, for testing ESP and aim modules. Nobody else can see it.");
+		m("ItemDropper", "Drops the items on your list (or everything not on the Keep list) from your inventory at a steady pace.");
+		m("AntiTrap", "When you are walled into a one by two cell, digs out through the softest block. Never touches containers or spawners.");
+		m("AutoSell", "Runs your sell command on a timer, moves matching items into the sell window and presses confirm. Does nothing unless the window title matches.");
+		m("AutoSpawnerSell", "In a spawner window, presses the sell button (or takes the items out) and closes it. Can open the spawner you look at on a timer.");
+		m("ChunkFinder", "Highlights chunks that hold at least a number of the blocks you pick (spawners by default). .chunkfinder lists the richest.");
+		m("NetheriteFinder", "Highlights ancient debris and netherite blocks.");
+		m("PlayerChunks", "Remembers the chunks other players were seen in and outlines them, fading with age.");
+		m("BlockNotifier", "Tells you when one of the listed blocks shows up within range, with a pop-up and an optional chime.");
+		m("PearlTrajectory", "Draws where an ender pearl will land: the one in your hand and pearls already in the air.");
+		m("RealHitBox", "Draws the true hitbox of other entities (what the server uses), so you can compare it with what HitBox makes you aim at.");
+		m("TargetHUD", "A HUD panel for whoever you last hit or are aiming at: name, health bar, armor and distance.");
+		m("MusicHUD", "A HUD line with the music or record that is playing.");
+		m("BlockEntityDebug", "HUD panel and chat listing of the block entities in your chunk by type, straight from the chunk data.");
+		m("LightFinder", "Finds player-placed light sources (torches, lanterns, lamps) deep underground, where nothing natural lights a room.");
+		m("SuspiciousESP", "Highlights single blocks natural generation does not make: obsidian, hoppers, observers, pistons, beacons and similar.");
+		m("TunnelBaseFinder", "Joins TunnelFinder runs into whole tunnels and marks both ends: a long straight tunnel leads somewhere.");
+		m("PrimeChunkFinder", "Combines SusChunks, StashFinder, TunnelFinder and NewChunks: a chunk is prime when several independent signals agree. .prime lists them.");
+		m("RTPBaseFinder", "Uses your random-teleport command, waits for the area to load, checks the finders and repeats until something worth a look turns up.");
+		m("SeedChunkFinder", "With the world seed set, finds chunks where many of the ores world generation put are gone: somebody has been mining there.");
+		m("DiscordPresence", "Shows what you are doing in your Discord profile through the local Discord app. Needs an Application ID; nothing is sent without one.");
+		m("Proxy", "Connects to servers through a SOCKS5, SOCKS4 or HTTP proxy. Only the server connection uses it.");
+		m("Radio", "Plays an internet radio station (MP3 streams) while you play.");
+
 		s("StorageESP", "Range", "Render", "How far away storage is highlighted.");
 		s("StorageESP", "Tracers", "Render", "Draw lines from the crosshair to each storage block.");
 		s("StorageESP", "Fill", "Render", "Fill the boxes with a translucent color.");
@@ -138,6 +209,7 @@ public final class ModuleInfo {
 	public static void apply(Module m) {
 		String d = MODULES.get(m.name().toLowerCase());
 		if (d != null && m.description().isBlank()) m.setDescription(d);
+		m.setDetection(detectionOf(m.name()));
 		for (Setting<?> s : m.settings()) {
 			String[] meta = SETTINGS.get((m.name() + "|" + s.name()).toLowerCase());
 			if (meta != null && s.description().isBlank()) s.setMeta(meta[0], meta[1]);

@@ -12,6 +12,8 @@ import java.util.function.Predicate;
 
 /** Small helpers shared by the combat modules. */
 final class CombatUtil {
+	private static long lastRefusalLog;
+
 	private CombatUtil() {}
 
 	/** First hotbar slot whose stack matches, or -1. */
@@ -32,11 +34,18 @@ final class CombatUtil {
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer p = mc.player;
 		if (p == null || mc.gameMode == null || mc.level == null || target == null) return false;
+		// with Freecam the crosshair is cast from the detached camera: it may touch your own body, and reach is measured from
+		// the real player, so nothing may be attacked from there
+		if (breezeclient.breezeclient.client.modules.Freecam.active() || target == p) return false;
 		boolean valid = ((target instanceof LivingEntity le && le.isAlive()) || target instanceof net.minecraft.world.entity.boss.enderdragon.EndCrystal) && !target.isRemoved() && target != p && target != mc.getCameraEntity()
 			&& !(target instanceof net.minecraft.world.entity.player.Player pl && pl.getUUID().equals(p.getUUID()))
 			&& mc.level.getEntity(target.getId()) == target;
 		if (!valid) {
-			java.util.logging.Logger.getLogger("breez-client").warning(who + " refused to attack " + target);
+			long now = System.currentTimeMillis();
+			if (now - lastRefusalLog > 5000) { // a module that keeps retrying must not fill the log
+				lastRefusalLog = now;
+				java.util.logging.Logger.getLogger("breez-client").warning(who + " refused to attack " + target);
+			}
 			return false;
 		}
 		mc.gameMode.attack(p, target);

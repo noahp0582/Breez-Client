@@ -29,7 +29,7 @@ public class HoleEsp extends Module {
 	private final List<Hole> holes = new ArrayList<>();
 	private int ticks;
 
-	public HoleEsp() { super("HoleESP", Category.RENDER); }
+	public HoleEsp() { super("HoleESP", Category.BASE_FINDING); }
 
 	@Override
 	public String info() { return holes.isEmpty() ? "" : String.valueOf(holes.size()); }

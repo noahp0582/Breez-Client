@@ -25,7 +25,8 @@
 		"ScoreboardMixin",
 		"PlayerTabOverlayMixin",
 		"PlayerScoreEntryMixin",
-		"ObjectiveMixin"
+		"ObjectiveMixin",
+		"ConnectionMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

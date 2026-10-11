@@ -45,6 +45,15 @@ public final class ModuleActions {
 	public static void install(ModuleManager mm) {
 		Module m;
 
+
+		if ((m = mm.get("PrimeChunkFinder")) != null) {
+			act(m, "List the best chunks", "Same as .prime.", "prime 10");
+		}
+
+		if ((m = mm.get("ChunkFinder")) != null) {
+			act(m, "List the richest chunks", "Same as .chunkfinder.", "chunkfinder 10");
+		}
+
 		if ((m = mm.get("SpawnerPickup")) != null) {
 			act(m, "Set ender chest to the block I'm looking at", "Look at your ender chest, then click. Same as .spawner chest.", "spawner chest");
 		}

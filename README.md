@@ -51,6 +51,76 @@ Drop the jar from `build/libs` (not the `-sources` one) into `.minecraft/mods` t
 | SchematicBuilder | Builds `.litematic`, `.schem` and `.nbt` files layer by layer in straight sweeps. `.build files`, `.build load <file>`, `.build origin`, `.build start`. |
 | Macros | `.macro add <name> <script>`; script steps: `say`, `wait`, `slot`, `use`, `attack`, `look`, `turn`, `sneak`, `jump`, `loop`. Bind with `.bind`. |
 
+### Detection status
+
+Every module has a rating, shown as a colored strip in the module list (green / amber / red, legend at the bottom of the
+screen), as a line on its settings page, in its tooltip, and from chat with `.detection [undetected|risk|detected]`.
+
+| Status | Meaning |
+|---|---|
+| **Undetected** | Local only (rendering, sounds, UI) or indistinguishable from ordinary play. |
+| **Use at Risk** | Acts on its own in ways a strict anti-cheat or an attentive moderator can notice. |
+| **Detected** | Known to be flagged by common anti-cheats. |
+
+Modules are rated by what they send to
+the server. These are estimates of behavior, not guarantees: servers differ and change, so treat anything but the local-only
+modules as something that can get you banned.
+
+| Status | Modules |
+|---|---|
+| Detected | HitBox, TunnelBaseFinder |
+| Use at Risk | TotemMacro (Auto Totem), AutoInvTotem, StaticHitBoxes, RTPBaseFinder, AntiTrap, ItemDropper, AutoSell, AutoSpawnerSell, SchematicBuilder, SpawnerPickup, ChestLooter, Baritone |
+| Undetected | everything else |
+
+### More modules
+
+| Category | Module | What it does |
+|---|---|---|
+| Combat | AutoDoubleHand | At low health with a totem in the offhand, also holds a totem in the main hand. |
+| Combat | AutoInvTotem | With the inventory open, moves a totem into the offhand (and an optional hotbar slot). |
+| Combat | TotemOffhand | Hotbar totem to offhand with the swap-hands action, then back to your slot. |
+| Combat | AutoJumpReset | Jumps on the tick you take a hit on the ground. |
+| Combat | NoHitDelay | Removes the 10-tick pause after swinging at nothing. |
+| Combat | CrystalOptimizer | An end crystal you hit disappears on your screen at once, so the next place and hit do not wait for the server. |
+| Combat | StaticHitBoxes | Your crosshair keeps seeing players at standing height while they sneak, crawl or swim. |
+| Combat | SpearSwap | Switches to a spear (1.21.11) when you attack, then back. |
+| Combat | AutoHitCrystal | Breaks any end crystal under the crosshair once in reach; never places. |
+| Movement | Sprint | Holds sprint while moving forward. |
+| Movement | ElytraGlide | Dive / climb pitch cycle that keeps speed and height without fireworks. |
+| Misc | AutoFirework | Fires a rocket from hotbar or offhand while gliding when you slow down. |
+| Misc | KeyPearl, KeyWindCharge | Bind to a key: throw an ender pearl / wind charge, then return to your slot. |
+| Misc | AutoMine | Holds attack on blocks that are safe to break (never containers, spawners, unbreakables). |
+| Misc | AutoTool | Fastest hotbar tool for the block you are breaking, restores your slot after. |
+| Misc | Fakeplayer | A client-side copy of a player for testing ESPs; only you see it. |
+| Donut | AutoSell, AutoSpawnerSell | Sell-window and spawner-window automation by window title and button name (all text is a setting). |
+| Donut | ChunkFinder | Chunks holding at least N of the blocks you pick. `.chunkfinder` lists them. |
+| Donut | NetheriteFinder | Ancient debris and netherite blocks. |
+| Donut | PlayerChunks | Chunks other players were seen in, fading with age. |
+| Donut | ItemDropper | Drops listed items (or everything not on the Keep list) at a steady pace. |
+| Donut | AntiTrap | Digs out when you are walled into a 1x2 cell. |
+| BaseFinding | BlockEntityDebug | HUD panel and chat list of block entities by type for your chunk(s). |
+| BaseFinding | LightFinder | Player-placed torches, lanterns and lamps deep underground. |
+| BaseFinding | SuspiciousESP | Individual blocks natural generation does not make (obsidian, hoppers, observers, beacons...). |
+| BaseFinding | TunnelBaseFinder | Joins TunnelFinder runs into whole tunnels and marks both ends. |
+| BaseFinding | PrimeChunkFinder | Chunks where several finders agree (base signature, stash, tunnel, old chunk in new terrain). `.prime` lists them. |
+| BaseFinding | RTPBaseFinder | Repeats your `/rtp` command, checks the finders after each landing, stops on a find. |
+| BaseFinding | SeedChunkFinder | With the seed set, chunks where most of the generated ore is gone (mined out). |
+| Render | BlockNotifier | Pop-up (and chime) when a listed block appears in range. |
+| Render | PearlTrajectory | Landing prediction for the pearl in your hand and for pearls in flight. |
+| Render | RealHitBox | Draws the true hitbox the server uses. |
+| Render | TargetHUD, MusicHUD | Target panel (name, health, armor, distance) and a "now playing" line. |
+| Client | DiscordPresence | Rich presence through the local Discord app. Needs an Application ID (empty = nothing is sent). |
+| Client | Proxy | SOCKS5 / SOCKS4 / HTTP proxy for the server connection (host, port and optional login in the settings). |
+| Client | Radio | MP3 internet radio (Radio Paradise, ILoveRadio, FIP, or your own stream URL). |
+
+Already present under other names: Auto Crystal = CrystalMacro, Auto Totem = TotemMacro, Auto Loot = ChestLooter, Cord Snapper =
+CoordSnapper, Fast Place = FastUse, Ore Sim = SeedOres, SwingSpeed = Animations (Swing speed), Chat Macro = the Macros tab,
+HUD = the HUD tab, Trigger Bot = Triggerbot.
+
+Things you fill in yourself (nothing is sent until you do): DiscordPresence needs the Application ID of an app you create at
+discord.com/developers/applications; Proxy needs a host, port and optional username and password; Radio's CUSTOM station needs
+a stream URL.
+
 ### The GUI (Right Shift)
 
 Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD) over draggable, scrollable windows.
@@ -100,13 +170,13 @@ The look and layout are modelled on Meteor Client's, but all code here is origin
 
 CrystalMacro can now lay an obsidian base first: aim at the top of a block that is not obsidian or bedrock and it places obsidian from your hotbar, then switches back to crystals.
 
-Not built on purpose: FakePay, FakeStats (including its editable leaderboard) and GambleRigger. They exist to fake payments and balances or to rig gambles against other players, so they are not part of this client.
+Not built on purpose: FakePay and FakeStats and GambleRigger. They exist to fake payments and balances or to rig gambles against other players, so they are not part of this client.
 
 Waypoints: `.waypoints list|add|remove|clear`. Finds from SpawnerESP, AmethystDetector and SusChunks can save waypoints automatically.
 
 ## About "undetectable"
 
-Nothing here sends custom packets or changes the client brand, and every automated action goes through a humanization layer:
+The Detection ratings above are estimates. Nothing here sends custom packets or changes the client brand, and every automated action goes through a humanization layer:
 camera moves are eased and snapped to real mouse-step sizes, and clicks and placements use randomized, non-periodic delays.
 That makes automation look less robotic. It does **not** make it undetectable: server anti-cheat varies, staff can watch you,
 and ESP, freecam and fullbright are only invisible because they are local. Treat everything as detectable.

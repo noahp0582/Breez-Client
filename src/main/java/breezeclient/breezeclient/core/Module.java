@@ -16,9 +16,11 @@ public abstract class Module {
 	private boolean enabled;
 	private int key = -1;
 	private String description = "";
+	private Detection detection = Detection.UNDETECTED;
 	private boolean chatFeedback;
 	private boolean visibleInHud = true;
 	private boolean toggleOnBindRelease;
+	private boolean enabling;
 
 	protected Module(String name, Category category) {
 		this.name = name;
@@ -34,6 +36,10 @@ public abstract class Module {
 
 	public String description() { return description; }
 	public void setDescription(String d) { this.description = d == null ? "" : d; }
+
+	/** How noticeable this module is to anti-cheat and staff. Shown as a badge in the GUI; changes nothing about behavior. */
+	public Detection detection() { return detection; }
+	public void setDetection(Detection d) { this.detection = d == null ? Detection.UNDETECTED : d; }
 
 	/** Announce toggles (toast/chat). */
 	public boolean chatFeedback() { return chatFeedback; }
@@ -76,7 +82,20 @@ public abstract class Module {
 	public void setEnabled(boolean on) {
 		if (on == enabled) return;
 		enabled = on;
-		if (on) onEnable(); else onDisable();
+		boolean nested = enabling;
+		if (on) {
+			enabling = true;
+			try {
+				onEnable();
+			} finally {
+				enabling = false;
+			}
+		} else {
+			onDisable();
+		}
+		// A one-shot module (CoordSnapper, KeyPearl...) or a failed start switches itself off from inside onEnable: that
+		// is not a toggle the user should be told about, and announcing it would say "Disabled" and then "Enabled".
+		if (nested || (on && !enabled)) return;
 		ModuleListener l = listener;
 		if (l != null) l.toggled(this, on);
 	}

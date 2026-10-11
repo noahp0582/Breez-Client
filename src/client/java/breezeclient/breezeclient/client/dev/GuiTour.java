@@ -59,7 +59,7 @@ public final class GuiTour {
 			STEPS.add(new Step(t + 14, () -> shot(mc)));
 			t += 30;
 		}
-		for (String module : List.of("StorageESP", "SusChunks", "KillSwitch")) {
+		for (String module : List.of("StorageESP", "SusChunks", "KillSwitch", "HitBox", "RTPBaseFinder")) {
 			final String name = module;
 			STEPS.add(new Step(t, () -> mc.setScreen(new ModuleScreen(BreezClientClient.MODULES.get(name)))));
 			STEPS.add(new Step(t + 14, () -> shot(mc)));
