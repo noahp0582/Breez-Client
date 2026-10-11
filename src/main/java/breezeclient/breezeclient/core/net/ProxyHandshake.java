@@ -160,11 +160,16 @@ public final class ProxyHandshake {
 		out.flush();
 		// read the response headers up to the blank line, one byte at a time so no tunnelled data is consumed
 		StringBuilder head = new StringBuilder();
+		boolean complete = false;
 		while (head.length() < 8192) {
 			head.append((char) read(in));
 			int n = head.length();
-			if (n >= 4 && head.charAt(n - 4) == '\r' && head.charAt(n - 3) == '\n' && head.charAt(n - 2) == '\r' && head.charAt(n - 1) == '\n') break;
+			if (n >= 4 && head.charAt(n - 4) == '\r' && head.charAt(n - 3) == '\n' && head.charAt(n - 2) == '\r' && head.charAt(n - 1) == '\n') {
+				complete = true;
+				break;
+			}
 		}
+		if (!complete) throw new IOException("proxy sent oversized response headers");
 		String status = head.toString().split("\r\n", 2)[0];
 		String[] parts = status.split(" ");
 		if (parts.length < 2 || !parts[1].equals("200")) throw new IOException("proxy refused the connection: " + status);

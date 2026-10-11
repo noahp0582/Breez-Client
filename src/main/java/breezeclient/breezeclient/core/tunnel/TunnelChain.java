@@ -21,8 +21,8 @@ public final class TunnelChain {
 	public record Chain(int x1, int z1, int x2, int z2, int y, boolean alongX, int length, int runs) {}
 
 	/**
-	 * @param gap how many blocks may separate two runs on one line and still count as one tunnel (1 joins runs that
-	 *            touch at a chunk border; larger values bridge a gap where a corner or a door interrupted the scan)
+	 * @param gap how many blocks may separate two runs on one line and still count as one tunnel (runs that touch or
+	 *            overlap always join, even with 0; larger values bridge a gap where a corner or a door interrupted the scan)
 	 */
 	public static List<Chain> merge(List<Run> runs, int gap) {
 		// one group per line: same direction, same height and the same fixed coordinate

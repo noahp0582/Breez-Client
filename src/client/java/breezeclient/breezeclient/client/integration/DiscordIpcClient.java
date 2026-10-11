@@ -91,7 +91,9 @@ public final class DiscordIpcClient implements Closeable {
 		if (head.length < 8) throw new IOException("Discord closed the connection");
 		int[] h = IpcFrame.header(head);
 		byte[] body = in.readNBytes(h[1]);
-		return new String(body, java.nio.charset.StandardCharsets.UTF_8);
+		String text = new String(body, java.nio.charset.StandardCharsets.UTF_8);
+		if (h[0] == IpcFrame.CLOSE) throw new IOException("Discord refused the connection: " + text);
+		return text;
 	}
 
 	/** Sends one activity update and consumes the reply so the pipe never fills up. */

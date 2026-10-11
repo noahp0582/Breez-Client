@@ -121,6 +121,10 @@ Things you fill in yourself (nothing is sent until you do): DiscordPresence need
 discord.com/developers/applications; Proxy needs a host, port and optional username and password; Radio's CUSTOM station needs
 a stream URL.
 
+Notes on the network modules: Proxy keeps its login in `config.json` as plain text, and while it is switched on without a
+host, server connections are refused rather than sent directly. Minecraft resolves the server's DNS name before the relay
+sees it, so the lookup itself is not proxied. Radio bundles the LGPL-licensed JLayer MP3 decoder (`javazoom:jlayer`).
+
 ### The GUI (Right Shift)
 
 Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD) over draggable, scrollable windows.

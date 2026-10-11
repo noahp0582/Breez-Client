@@ -159,7 +159,7 @@ public final class ModuleInfo {
 		m("MusicHUD", "A HUD line with the music or record that is playing.");
 		m("BlockEntityDebug", "HUD panel and chat listing of the block entities in your chunk by type, straight from the chunk data.");
 		m("LightFinder", "Finds player-placed light sources (torches, lanterns, lamps) deep underground, where nothing natural lights a room.");
-		m("SuspiciousESP", "Highlights single blocks natural generation does not make: obsidian, hoppers, observers, pistons, beacons and similar.");
+		m("SuspiciousESP", "Highlights single blocks that mark player activity: hoppers, observers, pistons, beacons, ender chests and similar. A few (obsidian, TNT, anvils) also occur in natural structures, so expect some noise.");
 		m("TunnelBaseFinder", "Joins TunnelFinder runs into whole tunnels and marks both ends: a long straight tunnel leads somewhere.");
 		m("PrimeChunkFinder", "Combines SusChunks, StashFinder, TunnelFinder and NewChunks: a chunk is prime when several independent signals agree. .prime lists them.");
 		m("RTPBaseFinder", "Uses your random-teleport command, waits for the area to load, checks the finders and repeats until something worth a look turns up.");

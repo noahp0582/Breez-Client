@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.input.Keys;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
@@ -28,7 +29,7 @@ public class AntiAfk extends Module {
 
 	@Override
 	protected void onDisable() {
-		if (jumpTicks > 0 && Minecraft.getInstance().options != null) net.minecraft.client.KeyMapping.setAll();
+		if (jumpTicks > 0 && Minecraft.getInstance().options != null) Keys.release(Minecraft.getInstance().options.keyJump);
 		jumpTicks = 0;
 	}
 
@@ -38,11 +39,11 @@ public class AntiAfk extends Module {
 	protected void onTick() {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null) return;
-		if (jumpTicks > 0 && --jumpTicks == 0) net.minecraft.client.KeyMapping.setAll();
+		if (jumpTicks > 0 && --jumpTicks == 0) Keys.release(mc.options.keyJump);
 		if (--wait > 0 || RotationController.busy() || mc.screen != null) return;
 		wait = next();
 		if (jump.get() && limiter.chance(0.3)) {
-			mc.options.keyJump.setDown(true);
+			Keys.press(mc.options.keyJump);
 			jumpTicks = 2;
 			return;
 		}

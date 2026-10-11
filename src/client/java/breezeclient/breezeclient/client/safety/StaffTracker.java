@@ -34,7 +34,7 @@ public final class StaffTracker {
 		ServerProfile profile = profile();
 		double r2 = radius * radius;
 		for (AbstractClientPlayer p : mc.level.players()) {
-			if (p == mc.player) continue;
+			if (p == mc.player || p.getId() < 0) continue; // negative ids are client-only fakes (Fakeplayer)
 			String name = nameOf(p);
 			if (trusted.contains(name.toLowerCase(Locale.ROOT))) continue;
 			double d2 = p.distanceToSqr(mc.player);

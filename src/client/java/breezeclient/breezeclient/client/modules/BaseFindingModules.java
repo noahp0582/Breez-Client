@@ -664,6 +664,7 @@ public final class BaseFindingModules {
 			for (Map.Entry<Long, Map<BlockPos, BlockState>> en : Modules.seedOres.simulated().entrySet()) {
 				int cx = ChunkPos.getX(en.getKey()), cz = ChunkPos.getZ(en.getKey());
 				if (Math.max(Math.abs(cx - me.x), Math.abs(cz - me.z)) <= minDistance.asInt()) continue;
+				if (level.getChunkSource().getChunk(cx, cz, false) == null) continue; // unloaded chunks read as air, not as mined
 				int predicted = 0, missing = 0;
 				BlockPos sample = null;
 				for (BlockPos p : en.getValue().keySet()) {

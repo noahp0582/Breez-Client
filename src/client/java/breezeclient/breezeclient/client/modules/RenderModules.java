@@ -54,6 +54,7 @@ public final class RenderModules {
 		private ScanTarget target;
 		private List<String> applied = List.of();
 		private final Set<Long> seen = new HashSet<>();
+		private Object seenLevel;
 		private int ticks;
 
 		public BlockNotifier() { super("BlockNotifier", Category.RENDER); }
@@ -81,6 +82,10 @@ public final class RenderModules {
 			Minecraft mc = Minecraft.getInstance();
 			LocalPlayer p = mc.player;
 			if (target == null || p == null || mc.level == null) return;
+			if (mc.level != seenLevel) { // a new world or dimension: positions announced before mean nothing now
+				seenLevel = mc.level;
+				seen.clear();
+			}
 			if (!applied.equals(blocks.get())) {
 				applied = List.copyOf(blocks.get());
 				var set = BlockIds.resolve(applied);
@@ -311,9 +316,16 @@ public final class RenderModules {
 		}
 
 		@Override
-		protected void onEnable() {
+		protected void onEnable() { ensureListener(); }
+
+		@Override
+		protected void onTick() { ensureListener(); } // retried here: at startup the sound manager is not built yet
+
+		private void ensureListener() {
 			if (listening) return;
-			Minecraft.getInstance().getSoundManager().addListener((sound, events, range) -> {
+			var sounds = Minecraft.getInstance().getSoundManager();
+			if (sounds == null) return;
+			sounds.addListener((sound, events, range) -> {
 				MusicHud m = instance;
 				if (m == null || !m.enabled()) return;
 				SoundSource src = sound.getSource();

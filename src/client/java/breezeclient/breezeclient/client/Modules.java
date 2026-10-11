@@ -231,7 +231,7 @@ public final class Modules {
 		if (spawnerPickup != null) spawnerPickup.setEnabled(false);
 		if (builder != null) builder.setEnabled(false);
 		for (var m : BreezClientClient.macros.all()) m.setEnabled(false);
-		for (String n : new String[] {"AutoMine", "AutoWalk", "ItemDropper", "AutoSell", "RTPBaseFinder", "ElytraGlide"}) {
+		for (String n : new String[] {"AutoMine", "AutoWalk", "ItemDropper", "AutoSell", "AutoSpawnerSell", "RTPBaseFinder", "ElytraGlide"}) {
 			var mod = BreezClientClient.MODULES.get(n);
 			if (mod != null) mod.setEnabled(false);
 		}

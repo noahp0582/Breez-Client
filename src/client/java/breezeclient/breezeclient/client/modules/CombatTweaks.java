@@ -52,7 +52,7 @@ public final class CombatTweaks {
 				if (m != null && m.enabled() && level.isClientSide() && entity instanceof EndCrystal && player == Minecraft.getInstance().player) {
 					int id = entity.getId();
 					// next client task, after the attack packet for this click has been built and sent
-					Minecraft.getInstance().execute(() -> {
+					Minecraft.getInstance().schedule(() -> {
 						var lvl = Minecraft.getInstance().level;
 						if (lvl != null && lvl.getEntity(id) instanceof EndCrystal) lvl.removeEntity(id, Entity.RemovalReason.KILLED);
 					});

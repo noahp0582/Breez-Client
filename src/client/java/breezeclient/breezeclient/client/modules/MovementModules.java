@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.input.Keys;
 import breezeclient.breezeclient.client.gui.Toasts;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.core.Category;
@@ -32,7 +33,7 @@ public final class MovementModules {
 
 		@Override
 		protected void onDisable() {
-			if (forced) KeyMapping.setAll();
+			if (forced) Keys.release(Minecraft.getInstance().options.keySprint);
 			forced = false;
 		}
 
@@ -44,10 +45,10 @@ public final class MovementModules {
 			boolean moving = mc.options.keyUp.isDown() && !mc.options.keyDown.isDown();
 			boolean hungry = p.getFoodData().getFoodLevel() <= 6 && !p.getAbilities().mayfly;
 			if (moving && !p.isShiftKeyDown() && !p.isUsingItem() && (whenHungry.get() || !hungry)) {
-				mc.options.keySprint.setDown(true);
+				Keys.press(mc.options.keySprint);
 				forced = true;
 			} else if (forced) {
-				KeyMapping.setAll(); // hand sprint back to the physical key
+				Keys.release(mc.options.keySprint); // hand sprint back to the physical key
 				forced = false;
 			}
 		}
@@ -74,6 +75,9 @@ public final class MovementModules {
 
 		@Override
 		protected void onEnable() { controller = null; }
+
+		@Override
+		protected void onDisable() { RotationController.clear(); } // otherwise the camera keeps easing to the last pitch
 
 		@Override
 		protected void onTick() {

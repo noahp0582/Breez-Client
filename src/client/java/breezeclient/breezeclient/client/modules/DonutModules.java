@@ -59,6 +59,19 @@ public final class DonutModules {
 
 	private static String nameOf(ItemStack s) { return s.getHoverName().getString().toLowerCase(Locale.ROOT); }
 
+	/**
+	 * Records one more click on a slot and says whether clicking it again is pointless: three clicks in a row left its stack
+	 * unchanged, so the server (or a full window) is refusing. A click that changed the stack starts the count again.
+	 */
+	static boolean stuck(Map<Integer, int[]> tries, int slot, int count) {
+		int[] e = tries.get(slot);
+		if (e == null || e[0] != count) {
+			tries.put(slot, new int[] {count, 1});
+			return false;
+		}
+		return ++e[1] > 3;
+	}
+
 	/** True for slots that belong to the player's inventory part of an open menu (as opposed to the container). */
 	private static boolean isPlayerSlot(LocalPlayer p, Slot s) { return s.container == p.getInventory(); }
 
@@ -88,6 +101,8 @@ public final class DonutModules {
 		private int timer;
 		private int wait;
 		private int sold;
+		/** Clicks tried per menu slot in this window: a slot the server will not move is given up after a few. */
+		private final Map<Integer, int[]> tries = new HashMap<>();
 
 		public AutoSell() { super("AutoSell", Category.DONUT); }
 
@@ -136,6 +151,7 @@ public final class DonutModules {
 				case OPENING -> {
 					if (cs != null && cs.getTitle().getString().toLowerCase(Locale.ROOT).contains(title.get().toLowerCase(Locale.ROOT))) {
 						state = State.MOVING;
+						tries.clear();
 						wait = limiter.nextDelayTicks(clickDelay.get() + 2, 1, 2);
 					} else if (--timer <= 0) {
 						state = State.IDLE;
@@ -155,6 +171,7 @@ public final class DonutModules {
 						int idx = s.getContainerSlot();
 						if (!hotbar.get() && idx < 9) continue; // inventory container slots 0-8 are the hotbar
 						if (idx >= 36) continue; // armor and offhand
+						if (stuck(tries, s.index, s.getItem().getCount())) continue; // refused or the window is full
 						mc.gameMode.handleInventoryMouseClick(menu.containerId, s.index, 0, ClickType.QUICK_MOVE, p);
 						sold++;
 						wait = limiter.nextDelayTicks(clickDelay.get(), clickDelay.get() * 0.3, 1);
@@ -213,8 +230,12 @@ public final class DonutModules {
 		private int wait = -1;
 		private boolean done;
 		private int actions;
+		private final Map<Integer, int[]> tries = new HashMap<>();
 
 		public AutoSpawnerSell() { super("AutoSpawnerSell", Category.DONUT); }
+
+		@Override
+		protected boolean persistsEnabled() { return false; } // it right-clicks spawners on its own when auto-open is on
 
 		@Override
 		public String info() { return actions == 0 ? "" : String.valueOf(actions); }
@@ -235,7 +256,8 @@ public final class DonutModules {
 			if (cs == null) {
 				wait = -1;
 				done = false;
-				if (mc.screen == null && autoOpen.get() && --openTimer <= 0
+				tries.clear();
+				if (mc.screen == null && autoOpen.get() && !Freecam.active() && --openTimer <= 0
 					&& mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK && mc.level.getBlockState(bh.getBlockPos()).is(Blocks.SPAWNER)) {
 					mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, bh);
 					p.swing(InteractionHand.MAIN_HAND);
@@ -265,6 +287,7 @@ public final class DonutModules {
 			if (take.get()) {
 				for (Slot s : menu.slots) {
 					if (isPlayerSlot(p, s) || s.getItem().isEmpty()) continue;
+					if (stuck(tries, s.index, s.getItem().getCount())) continue; // refused, or a filler pane
 					mc.gameMode.handleInventoryMouseClick(menu.containerId, s.index, 0, ClickType.QUICK_MOVE, p);
 					actions++;
 					wait = limiter.nextDelayTicks(clickDelay.get(), clickDelay.get() * 0.3, 1);

@@ -31,6 +31,8 @@ public final class ProxyRelay {
 	/** The module installs a supplier that returns the active configuration, or null when the proxy is off. */
 	public static void setSource(Supplier<Config> s) { source = s; }
 
+	public static Supplier<Config> source() { return source; }
+
 	public static String lastError() { return lastError; }
 
 	/**
@@ -43,6 +45,10 @@ public final class ProxyRelay {
 		if (c == null || target == null) return target;
 		InetAddress a = target.getAddress();
 		if (a != null && (a.isLoopbackAddress() || a.isAnyLocalAddress())) return target; // singleplayer and LAN-on-this-machine
+		if (c.host() == null || c.host().isBlank() || c.port() < 1 || c.port() > 65535) {
+			lastError = "the proxy is switched on but has no valid host and port";
+			throw new IllegalStateException("Proxy: " + lastError);
+		}
 		ServerSocket ss;
 		try {
 			ss = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());

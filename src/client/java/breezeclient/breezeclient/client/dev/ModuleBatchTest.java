@@ -135,6 +135,15 @@ public final class ModuleBatchTest {
 			mc().player.setXRot(90);
 		});
 
+		// Keys helper: mouse-bound bindings must be released too (KeyMapping.setAll() skips them)
+		at(55, () -> {
+			var o = mc().options;
+			breezeclient.breezeclient.client.input.Keys.press(o.keyUse);
+			boolean pressed = o.keyUse.isDown();
+			breezeclient.breezeclient.client.input.Keys.release(o.keyUse);
+			check("Keys.press/release handle the use button", pressed && !o.keyUse.isDown(), "pressed " + pressed + " afterwards " + o.keyUse.isDown());
+		});
+
 		// KeyPearl + KeyWindCharge
 		at(60, () -> {
 			mc().player.setXRot(-30);
@@ -179,11 +188,12 @@ public final class ModuleBatchTest {
 		at(200, () -> {
 			var level = mc().level;
 			boolean stoneGone = level.getBlockState(new net.minecraft.core.BlockPos(0, 149, 0)).isAir() && level.getBlockState(new net.minecraft.core.BlockPos(0, 148, 0)).isAir();
-			check("AutoMine breaks the stone under the crosshair", stoneGone, "");
+			check("AutoMine breaks the stone under the crosshair", stoneGone, "149=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 149, 0)).getBlock() + " 148=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 148, 0)).getBlock() + " 147=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 147, 0)).getBlock() + " attackDown=" + mc().options.keyAttack.isDown() + " grabbed=" + mc().mouseHandler.isMouseGrabbed() + " screen=" + mc().screen + " hit=" + mc().hitResult + " enabled=" + mod("AutoMine").enabled() + " playerY=" + mc().player.getY());
 			boolean chest = level.getBlockState(new net.minecraft.core.BlockPos(0, 144, 0)).is(net.minecraft.world.level.block.Blocks.CHEST);
 			// the column is 145-149 stone; the chest sits below it, so it must survive however far the mining went
 			check("AutoMine never breaks a container", chest, "");
 			off("AutoMine");
+			check("AutoMine lets go of the attack button", !mc().options.keyAttack.isDown(), "keyAttack down");
 			mc().player.getInventory().setSelectedSlot(0);
 			as("tp @s 3.5 150 -4.5");
 		});
@@ -417,7 +427,8 @@ public final class ModuleBatchTest {
 		at(1100, () -> {
 			LOG.add("proxy relay: " + proxyResult);
 			LOG.add("radio: " + radioResult);
-			LOG.add("moduleCrashes=" + breezeclient.breezeclient.core.ModuleManager.crashCount());
+			int crashes = breezeclient.breezeclient.core.ModuleManager.crashCount();
+			check("no module crashed", crashes == 0, "moduleCrashes=" + crashes);
 			try {
 				Files.writeString(FabricLoader.getInstance().getGameDir().resolve("batch-test.txt"), String.join("\n", LOG) + "\n");
 			} catch (Exception ignored) {
@@ -450,6 +461,7 @@ public final class ModuleBatchTest {
 
 	/** A one-shot SOCKS5 server that answers the handshake, then echoes what it receives. */
 	private static void proxyTest() {
+		var previous = ProxyRelay.source();
 		Thread t = new Thread(() -> {
 			try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
 				int proxyPort = server.getLocalPort();
@@ -486,7 +498,7 @@ public final class ModuleBatchTest {
 			} catch (Exception e) {
 				proxyResult = "FAIL " + e;
 			} finally {
-				ProxyRelay.setSource(() -> null);
+				ProxyRelay.setSource(previous); // hand the real Proxy module its hook back
 			}
 		}, "batch-proxy-test");
 		t.setDaemon(true);

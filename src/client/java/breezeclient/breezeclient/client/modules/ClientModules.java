@@ -42,7 +42,7 @@ public final class ClientModules {
 		private DiscordIpcClient client;
 		private int ticks;
 		private long start;
-		private String lastSent = "";
+		private volatile String lastSent = "";
 		private boolean warned;
 
 		public DiscordPresence() { super("DiscordPresence", Category.CLIENT); }
@@ -145,7 +145,8 @@ public final class ClientModules {
 		}
 
 		private ProxyRelay.Config config() {
-			if (!enabled() || host.get().isBlank()) return null;
+			if (!enabled()) return null;
+			// enabled without a host is still a proxy config: the relay then refuses to connect instead of leaking your address
 			return new ProxyRelay.Config(type.get(), host.get().trim(), port.asInt(), user.get(), pass.get());
 		}
 
@@ -154,7 +155,7 @@ public final class ClientModules {
 
 		@Override
 		protected void onEnable() {
-			if (host.get().isBlank()) Toasts.show("Proxy", "Set the proxy Host and Port in the module's settings; until then connections go out directly", 0xFFFFAA00);
+			if (host.get().isBlank()) Toasts.show("Proxy", "Set the proxy Host and Port in the module's settings; until then server connections are blocked, not sent directly", 0xFFFFAA00);
 		}
 	}
 
@@ -203,6 +204,8 @@ public final class ClientModules {
 
 		private void start() {
 			String url = urlNow();
+			playing = station.get(); // remembered even when the URL is unusable, so the same bad value is not retried every tick
+			playingUrl = url;
 			if (url.isEmpty() || !(url.startsWith("http://") || url.startsWith("https://"))) {
 				Toasts.show("Radio", "Set a stream URL starting with http:// or https://", 0xFFFFAA00);
 				status = "no URL";
@@ -212,24 +215,37 @@ public final class ClientModules {
 			p.setVolume(volume.asInt());
 			p.play(url);
 			player = p;
-			playing = station.get();
-			playingUrl = url;
+			status = "";
 			lastVolume = volume.asInt();
 		}
 
+		private String pendingUrl = "";
+		private int pendingTicks;
+
 		@Override
 		protected void onTick() {
-			if (player == null) return;
-			if (lastVolume != volume.asInt()) {
+			if (player != null && lastVolume != volume.asInt()) {
 				lastVolume = volume.asInt();
 				player.setVolume(lastVolume);
 			}
-			if (playing != station.get() || !playingUrl.equals(urlNow())) { // changed station while playing
-				RadioPlayer old = player;
-				player = null;
-				new Thread(old::stop, "breez-radio-stop").start();
-				start();
+			String url = urlNow();
+			boolean changed = playing != station.get() || !playingUrl.equals(url);
+			if (!changed) {
+				pendingUrl = "";
+				return;
 			}
+			// wait until the value has stopped changing, so typing a URL does not open a connection per keystroke
+			if (!url.equals(pendingUrl)) {
+				pendingUrl = url;
+				pendingTicks = 0;
+				return;
+			}
+			if (++pendingTicks < 30) return;
+			pendingUrl = "";
+			RadioPlayer old = player;
+			player = null;
+			if (old != null) new Thread(old::stop, "breez-radio-stop").start();
+			start();
 		}
 	}
 }

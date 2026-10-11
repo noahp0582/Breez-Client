@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.input.Keys;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.humanize.ActionLimiter;
@@ -37,6 +38,8 @@ public final class DefenseModules {
 
 		private int back = -1;
 		private int ours = -1;
+		/** You chose a slot yourself while low on health: leave it alone until the danger has passed. */
+		private boolean manual;
 
 		public AutoDoubleHand() { super("AutoDoubleHand", Category.COMBAT); }
 
@@ -56,9 +59,11 @@ public final class DefenseModules {
 			if (ours >= 0 && p.getInventory().getSelectedSlot() != ours) { // you picked another slot yourself: leave it alone
 				back = -1;
 				ours = -1;
+				manual = true;
 			}
+			if (!low) manual = false;
 			if (low) {
-				if (!isTotem(p.getOffhandItem()) || isTotem(p.getMainHandItem())) return;
+				if (manual || !isTotem(p.getOffhandItem()) || isTotem(p.getMainHandItem())) return;
 				int slot = CombatUtil.hotbarSlot(p, Items.TOTEM_OF_UNDYING);
 				if (slot < 0) return;
 				if (back < 0) back = p.getInventory().getSelectedSlot();
@@ -123,6 +128,8 @@ public final class DefenseModules {
 	public static class TotemOffhand extends Module {
 		private final NumberSetting delay = add(new NumberSetting("Delay (ticks)", 3, 1, 20), "Timing", "Average pause before starting after the offhand empties.");
 		private final BoolSetting restore = add(new BoolSetting("Restore slot afterwards", true), "General", "Return to the slot you held before.");
+		private final BoolSetting replaceHeld = add(new BoolSetting("Replace a held item", false), "General",
+			"Also swap when the offhand holds something else (a shield, food). Off: only fill an empty offhand.");
 
 		private final ActionLimiter limiter = new ActionLimiter(new Random());
 		private int wait = -1;
@@ -154,7 +161,7 @@ public final class DefenseModules {
 				back = -1;
 				return;
 			}
-			if (mc.screen != null || isTotem(p.getOffhandItem())) {
+			if (mc.screen != null || isTotem(p.getOffhandItem()) || (!replaceHeld.get() && !p.getOffhandItem().isEmpty())) {
 				wait = -1;
 				return;
 			}
@@ -182,7 +189,7 @@ public final class DefenseModules {
 
 		@Override
 		protected void onDisable() {
-			if (pressed) net.minecraft.client.KeyMapping.setAll();
+			if (pressed) Keys.release(Minecraft.getInstance().options.keyJump);
 			pressed = false;
 		}
 
@@ -193,7 +200,7 @@ public final class DefenseModules {
 			if (p == null) return;
 			if (pressed) { // one tick of jump, then back to what your hand is doing
 				pressed = false;
-				net.minecraft.client.KeyMapping.setAll();
+				Keys.release(mc.options.keyJump);
 			}
 			int hurt = p.hurtTime;
 			boolean fresh = hurt > 0 && lastHurt == 0;
@@ -201,7 +208,7 @@ public final class DefenseModules {
 			if (!fresh || mc.screen != null || !p.onGround() || p.isUsingItem()) return;
 			if (onlyWhileMoving.get() && p.getDeltaMovement().horizontalDistanceSqr() < 1e-4) return;
 			if (!limiter.chance(chance.get() / 100.0)) return;
-			mc.options.keyJump.setDown(true);
+			Keys.press(mc.options.keyJump);
 			pressed = true;
 		}
 	}

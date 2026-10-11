@@ -36,7 +36,7 @@ final class CombatUtil {
 		if (p == null || mc.gameMode == null || mc.level == null || target == null) return false;
 		// with Freecam the crosshair is cast from the detached camera: it may touch your own body, and reach is measured from
 		// the real player, so nothing may be attacked from there
-		if (breezeclient.breezeclient.client.modules.Freecam.active() || target == p) return false;
+		if (breezeclient.breezeclient.client.modules.Freecam.active() || target == p || target.getId() < 0) return false; // negative ids are client-only fakes
 		boolean valid = ((target instanceof LivingEntity le && le.isAlive()) || target instanceof net.minecraft.world.entity.boss.enderdragon.EndCrystal) && !target.isRemoved() && target != p && target != mc.getCameraEntity()
 			&& !(target instanceof net.minecraft.world.entity.player.Player pl && pl.getUUID().equals(p.getUUID()))
 			&& mc.level.getEntity(target.getId()) == target;

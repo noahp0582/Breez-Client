@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.input.Keys;
 import breezeclient.breezeclient.client.gui.Toasts;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.world.BlockIds;
@@ -63,7 +64,7 @@ public final class UtilityModules {
 		protected void onDisable() { release(); }
 
 		private void release() {
-			if (forced) KeyMapping.setAll();
+			if (forced) Keys.release(Minecraft.getInstance().options.keyAttack);
 			forced = false;
 		}
 
@@ -78,7 +79,7 @@ public final class UtilityModules {
 			boolean ok = mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK && breakable(mc, bh.getBlockPos(), never)
 				&& !(needTool.get() && p.getMainHandItem().isEmpty());
 			if (ok) {
-				mc.options.keyAttack.setDown(true);
+				Keys.press(mc.options.keyAttack);
 				forced = true;
 			} else {
 				release();
@@ -93,6 +94,8 @@ public final class UtilityModules {
 			"Do not use a tool with this few uses left (0 = use anything).");
 		private int back = -1;
 		private int ours = -1;
+		/** You chose a slot yourself during this dig: keep it until you stop mining. */
+		private boolean manual;
 
 		public AutoTool() { super("AutoTool", Category.MISC); }
 
@@ -112,14 +115,17 @@ public final class UtilityModules {
 				if (back >= 0 && restore.get() && p.getInventory().getSelectedSlot() == ours) p.getInventory().setSelectedSlot(back);
 				back = -1;
 				ours = -1;
+				manual = false;
 				return;
 			}
+			if (manual) return;
 			BlockState state = mc.level.getBlockState(((BlockHitResult) mc.hitResult).getBlockPos());
 			if (state.isAir()) return;
 			int cur = p.getInventory().getSelectedSlot();
 			if (ours >= 0 && cur != ours) { // you chose a slot yourself while mining: do not fight it
 				back = -1;
 				ours = -1;
+				manual = true;
 				return;
 			}
 			int best = cur;
@@ -214,6 +220,7 @@ public final class UtilityModules {
 		private final ActionLimiter limiter = new ActionLimiter(new Random());
 		private int wait;
 		private int dropped;
+		private final java.util.Map<Integer, int[]> tries = new java.util.HashMap<>();
 
 		public ItemDropper() { super("ItemDropper", Category.DONUT); }
 
@@ -224,6 +231,7 @@ public final class UtilityModules {
 		protected void onEnable() {
 			dropped = 0;
 			wait = 0;
+			tries.clear();
 			if (items.get().isEmpty() && !everything.get()) {
 				Toasts.show("ItemDropper", "Add items to the list first (or turn on Drop everything)", 0xFFFF5555);
 				setEnabled(false);
@@ -248,6 +256,10 @@ public final class UtilityModules {
 				setEnabled(false);
 				return;
 			}
+			int have = p.inventoryMenu.getSlot(slot).getItem().getCount();
+			int[] t = tries.get(slot);
+			if (t != null && t[0] == have) t[1]++;
+			else tries.put(slot, new int[] {have, 1});
 			// THROW: button 0 drops one item, button 1 the whole stack
 			mc.gameMode.handleInventoryMouseClick(p.inventoryMenu.containerId, slot, wholeStacks.get() ? 1 : 0, ClickType.THROW, p);
 			dropped++;
@@ -261,7 +273,10 @@ public final class UtilityModules {
 				if (s.isEmpty()) continue;
 				String id = BuiltInRegistries.ITEM.getKey(s.getItem()).toString();
 				if (keep.contains(id)) continue;
-				if (everything.get() || items.contains(id)) return i;
+				if (!(everything.get() || items.contains(id))) continue;
+				int[] t = tries.get(i);
+				if (t != null && t[0] == s.getCount() && t[1] >= 3) continue; // three drops left the stack unchanged: refused
+				return i;
 			}
 			return -1;
 		}

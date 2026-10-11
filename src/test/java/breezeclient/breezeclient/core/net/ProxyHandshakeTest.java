@@ -90,6 +90,13 @@ class ProxyHandshakeTest {
 	}
 
 	@Test
+	void httpHeadersThatNeverEndAreAnErrorNotAPartialStatus() {
+		byte[] reply = ("HTTP/1.1 200 OK\r\n" + "X-Pad: ".repeat(1500)).getBytes(StandardCharsets.US_ASCII); // > 8192 bytes, no blank line
+		var e = assertThrows(IOException.class, () -> sent(Type.HTTP, reply, "a.b", 1, null, null));
+		assertTrue(e.getMessage().contains("oversized"), e.getMessage());
+	}
+
+	@Test
 	void aClosedConnectionAndBadTargetsFail() {
 		assertThrows(IOException.class, () -> sent(Type.SOCKS5, new byte[0], "a.b", 1, null, null));
 		assertThrows(IOException.class, () -> sent(Type.SOCKS5, new byte[0], "", 1, null, null));

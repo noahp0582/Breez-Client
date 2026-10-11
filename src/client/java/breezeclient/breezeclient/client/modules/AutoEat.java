@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.input.Keys;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.settings.NumberSetting;
@@ -45,7 +46,7 @@ public class AutoEat extends Module {
 		if (slot < 0) return;
 		savedSlot = p.getInventory().getSelectedSlot();
 		p.getInventory().setSelectedSlot(slot);
-		mc.options.keyUse.setDown(true);
+		Keys.press(mc.options.keyUse);
 		ticksEating = 0;
 		idleTicks = 0;
 	}
@@ -61,7 +62,7 @@ public class AutoEat extends Module {
 	}
 
 	private void stopEating(Minecraft mc) {
-		if (savedSlot >= 0 || ticksEating > 0) net.minecraft.client.KeyMapping.setAll();
+		if (savedSlot >= 0 || ticksEating > 0) Keys.release(mc.options.keyUse);
 		if (savedSlot >= 0 && mc.player != null) mc.player.getInventory().setSelectedSlot(savedSlot);
 		savedSlot = -1;
 	}
