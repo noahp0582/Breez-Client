@@ -35,28 +35,7 @@ public class ProfilesScreen extends BreezScreen {
 		};
 		seed.setMeta("World", "The server's real world seed. Enables SeedOres (ore and ancient debris prediction). Numbers or any text.");
 
-		StringListSetting staff = new StringListSetting("Staff names", List.of()) {
-			@Override
-			public List<String> get() { return p.staff(); }
-
-			@Override
-			public boolean add(String s) {
-				boolean r = p.addStaff(s);
-				return r;
-			}
-
-			@Override
-			public boolean remove(String s) { return p.removeStaff(s); }
-
-			@Override
-			public boolean contains(String s) { return p.isStaff(s); }
-
-			@Override
-			public boolean isDefault() { return p.staff().isEmpty(); }
-
-			@Override
-			public void reset() { for (String s : List.copyOf(p.staff())) p.removeStaff(s); }
-		};
+		StringListSetting staff = new breezeclient.breezeclient.client.modules.StaffNamesSetting();
 		staff.setMeta("Staff", "Names the KillSwitch and StaffList treat as staff on this server.");
 
 		Section world = new Section("profiles:world", "World");

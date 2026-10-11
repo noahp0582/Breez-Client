@@ -128,6 +128,17 @@ public final class ExtraTest {
 				}
 			}
 		}
+		if (ticks == 202) {
+			for (var st : BreezClientClient.MODULES.get("StaffList").settings()) {
+				if (st instanceof breezeclient.breezeclient.core.settings.StringListSetting l && st.name().equals("Staff names")) {
+					l.add("Herobrine");
+					LOG.add("staffListSetting added herobrine -> profile says " + breezeclient.breezeclient.client.safety.StaffTracker.profile().isStaff("herobrine"));
+				}
+			}
+			mc.setScreen(new breezeclient.breezeclient.client.gui.ModuleScreen(BreezClientClient.MODULES.get("StaffList")));
+		}
+		if (ticks == 214) shot(mc);
+		if (ticks == 218) mc.setScreen(null);
 		if (ticks == 200) {
 			LOG.add("chestLooter(minecart menu) netherite=" + count(mc, net.minecraft.world.item.Items.NETHERITE_INGOT) + " (expect still 5: refused)");
 			mc.player.closeContainer();
@@ -166,15 +177,15 @@ public final class ExtraTest {
 			for (String c : List.of("-200 41 0", "-199 41 0", "-198 41 0")) cmd(mc, "setblock " + c + " minecraft:chest");
 		}
 		// the scanner refreshes already-loaded chunks round-robin, so allow a full pass before expecting the control to show up
-		if (ticks == 900) susReport("SIGNATURES, positive control placed at tick 100");
+		if (ticks == 300) susReport("SIGNATURES, positive control placed at tick 100");
 		if (ticks == 130) shot(mc);
 		if (ticks == 140) mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
 		if (ticks == 175) shot(mc);
-		if (ticks == 910) {
+		if (ticks == 310) {
 			check(mc);
 			autoLogProbe(mc);
 		}
-		if (ticks == 1000) {
+		if (ticks == 400) {
 			append("autoLogDisconnected=false");
 			mc.stop();
 		}

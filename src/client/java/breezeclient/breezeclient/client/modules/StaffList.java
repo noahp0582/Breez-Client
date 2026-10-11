@@ -18,6 +18,9 @@ public class StaffList extends Module {
 	private final BoolSetting notify = add(new BoolSetting("Notify", true));
 	private final BoolSetting esp = add(new BoolSetting("ESP", true));
 	private final ColorSetting color = add(new ColorSetting("Color", 0xFFFF2222));
+	// the list for the server you are on; the same data as .staff and the Profiles tab
+	private final breezeclient.breezeclient.core.settings.StringListSetting staff = add(new StaffNamesSetting(), "Staff",
+		"Names treated as staff on the server you are on (each server keeps its own list). Type a name and press Enter to add it.");
 
 	private Set<String> online = new HashSet<>();
 	private int ticks;

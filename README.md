@@ -42,7 +42,7 @@ Drop the jar from `build/libs` (not the `-sources` one) into `.minecraft/mods` t
 | Freecam | Detached camera. Your real player stands still and cannot attack or place. |
 | Fullbright | Local night vision. |
 | KillSwitch | Drops the connection immediately when listed staff, a spectator, or (optionally) any player comes within range. Logs to `killswitch.log`. |
-| StaffList | `.staff add/remove/list/online/import <file>/clear`. Announces listed staff joining or leaving the tab list. |
+| StaffList | `.staff add/remove/list/online/import <file>/clear`. Announces listed staff joining or leaving the tab list. You can also add names in the module's settings page (right click StaffList, "Staff names"), or in the Profiles tab. |
 | AutoRelog | Leaves and rejoins when your Y level reaches the threshold (default -3) to reload chunks. Cooldown prevents loops. |
 | AutoReconnect | Reconnects after the server drops you (not after you press Disconnect). Suppressed after a kill switch. |
 | AntiAFK, AutoEat | Small irregular camera turns and hops; eats food from the hotbar when hungry. |
