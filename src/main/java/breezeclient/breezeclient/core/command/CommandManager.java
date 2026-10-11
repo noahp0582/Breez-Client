@@ -58,7 +58,9 @@ public class CommandManager {
 		Module m = modules.get(a[0]);
 		if (m == null) { r.accept("No such module: " + a[0]); return; }
 		if (a.length == 1) {
-			for (Setting<?> s : m.settings()) r.accept(key(s.name()) + " = " + s.toJson());
+			for (Setting<?> s : m.settings()) {
+				if (!(s instanceof breezeclient.breezeclient.core.settings.ActionSetting)) r.accept(key(s.name()) + " = " + s.toJson());
+			}
 			return;
 		}
 		Setting<?> setting = null;

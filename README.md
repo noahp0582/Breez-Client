@@ -57,6 +57,9 @@ Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD)
 Left click a module toggles it, right click opens its settings page (grouped, collapsible sections, tooltips, per-setting reset,
 color picker, list editors with block/item search, key bind, hold-to-enable). `Ctrl+F` focuses the module search.
 - **GUI tab:** accent/text/background colors, opacity, scale, rounded corners, animation speed, HUD module-list side, toast settings, reset layout.
+- **Actions in the module pages:** everything that used to need a typed command is a button or field in an "Actions" section of the module it belongs to
+  (right click the module): spawner chest, schematic load/origin, seed verify/clear, chunk/stash/geode/sus/coverage stats, export and clear, staff import,
+  player lookup, and the pathing tasks (go to, mine, follow, tunnel, this way, stop, pause, resume). The buttons run the same commands, so chat still works.
 - **Friends:** `.friend add|remove|list` (green in PlayerESP/NameTags, never trigger KillSwitch); also editable in the Config tab.
 - **Config tab:** command prefix, humanization delay scale, camera turn speed, announce-all-toggles, "Alerts in chat" (off by default: finds show as merged pop-ups instead of filling chat).
 - **Profiles tab:** per-server world seed and staff list. **Macros tab:** create, edit, bind, run macros. **HUD tab:** drag HUD elements.

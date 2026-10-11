@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.core;
 
+import breezeclient.breezeclient.core.settings.ActionSetting;
 import breezeclient.breezeclient.core.settings.Setting;
 import com.google.gson.JsonObject;
 
@@ -62,6 +63,14 @@ public abstract class Module {
 		return add(s, group, description);
 	}
 
+	/** Adds a setting after construction (used to give a module's page the fields its chat commands needed). */
+	public <S extends Setting<?>> S addSetting(S s, String group, String description) { return add(s, group, description); }
+
+	/** Adds a button to the "Actions" section of this module's settings page. */
+	public ActionSetting addAction(String name, String description, Runnable action) {
+		return add(new ActionSetting(name, action), "Actions", description);
+	}
+
 	public void toggle() { setEnabled(!enabled); }
 
 	public void setEnabled(boolean on) {
@@ -102,7 +111,7 @@ public abstract class Module {
 		o.addProperty("visibleInHud", visibleInHud);
 		o.addProperty("toggleOnBindRelease", toggleOnBindRelease);
 		JsonObject s = new JsonObject();
-		for (Setting<?> st : settings) s.add(st.name(), st.toJson());
+		for (Setting<?> st : settings) if (!(st instanceof ActionSetting)) s.add(st.name(), st.toJson());
 		o.add("settings", s);
 		return o;
 	}

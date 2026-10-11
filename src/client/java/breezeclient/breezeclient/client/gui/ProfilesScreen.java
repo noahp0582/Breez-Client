@@ -20,19 +20,7 @@ public class ProfilesScreen extends BreezScreen {
 		ServerProfile p = BreezClientClient.config.profile(Session.serverKey());
 		win.content.add(new Paragraph("Settings stored per server address. Join a server to edit its profile; singleplayer has its own.", true));
 
-		StringSetting seed = new StringSetting("World seed", "") {
-			@Override
-			public String get() { return p.seed() == null ? "" : p.seed(); }
-
-			@Override
-			public void set(String v) { p.setSeed(v == null || v.isBlank() ? null : v.trim()); }
-
-			@Override
-			public boolean isDefault() { return p.seed() == null; }
-
-			@Override
-			public void reset() { p.setSeed(null); }
-		};
+		StringSetting seed = new breezeclient.breezeclient.client.modules.ProfileSeedSetting();
 		seed.setMeta("World", "The server's real world seed. Enables SeedOres (ore and ancient debris prediction). Numbers or any text.");
 
 		StringListSetting staff = new breezeclient.breezeclient.client.modules.StaffNamesSetting();

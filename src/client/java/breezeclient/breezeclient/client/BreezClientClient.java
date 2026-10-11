@@ -39,6 +39,7 @@ public class BreezClientClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		breezeclient.breezeclient.client.gui.GuiState.load();
 		Modules.registerAll(MODULES);
+		ModuleActions.install(MODULES);
 		var dir = FabricLoader.getInstance().getConfigDir().resolve("breez-client");
 		macros = new MacroStore(dir, MODULES);
 		macros.load();
@@ -48,6 +49,7 @@ public class BreezClientClient implements ClientModInitializer {
 		config.load();
 		commands = new CommandManager(".", MODULES);
 		Modules.registerCommands(commands, config);
+		breezeclient.breezeclient.client.gui.GuiState.CLIENT.showAlerts.setAction(() -> breezeclient.breezeclient.client.chat.Cmd.run("alerts 10"));
 
 		Waypoints.init();
 		SelfTest.register();

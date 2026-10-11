@@ -139,6 +139,23 @@ public final class ExtraTest {
 		}
 		if (ticks == 214) shot(mc);
 		if (ticks == 218) mc.setScreen(null);
+		if (ticks == 222) {
+			StringBuilder sb = new StringBuilder("actions per module:");
+			for (var mod : BreezClientClient.MODULES.all()) {
+				int n = 0;
+				for (var st : mod.settings()) if (st instanceof breezeclient.breezeclient.core.settings.ActionSetting) n++;
+				if (n > 0) sb.append(' ').append(mod.name()).append('=').append(n);
+			}
+			LOG.add(sb.toString());
+			for (var st : BreezClientClient.MODULES.get("NewChunks").settings()) {
+				if (st instanceof breezeclient.breezeclient.core.settings.ActionSetting a && a.name().equals("Show counts")) a.run();
+			}
+			mc.setScreen(new breezeclient.breezeclient.client.gui.ModuleScreen(BreezClientClient.MODULES.get("Baritone")));
+		}
+		if (ticks == 232) shot(mc);
+		if (ticks == 234) mc.setScreen(new breezeclient.breezeclient.client.gui.ModuleScreen(BreezClientClient.MODULES.get("SchematicBuilder")));
+		if (ticks == 244) shot(mc);
+		if (ticks == 246) mc.setScreen(null);
 		if (ticks == 200) {
 			LOG.add("chestLooter(minecart menu) netherite=" + count(mc, net.minecraft.world.item.Items.NETHERITE_INGOT) + " (expect still 5: refused)");
 			mc.player.closeContainer();

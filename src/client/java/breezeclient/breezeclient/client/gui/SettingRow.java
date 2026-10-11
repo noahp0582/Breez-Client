@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.gui;
 
+import breezeclient.breezeclient.core.settings.ActionSetting;
 import breezeclient.breezeclient.core.settings.BoolSetting;
 import breezeclient.breezeclient.core.settings.ColorSetting;
 import breezeclient.breezeclient.core.settings.EnumSetting;
@@ -14,10 +15,15 @@ public class SettingRow extends Widget {
 	private final Setting<?> setting;
 	private final Widget control;
 	private final boolean wide;
+	private final boolean button;
 
 	public SettingRow(Setting<?> s) {
 		this.setting = s;
-		if (s instanceof BoolSetting b) {
+		this.button = s instanceof ActionSetting;
+		if (s instanceof ActionSetting a) {
+			control = new Controls.Button(a.name(), a::run);
+			wide = false;
+		} else if (s instanceof BoolSetting b) {
 			control = new Controls.Checkbox(b);
 			wide = false;
 		} else if (s instanceof NumberSetting n) {
@@ -44,7 +50,7 @@ public class SettingRow extends Widget {
 		}
 	}
 
-	private int labelW() { return wide ? w : (int) (w * 0.4); }
+	private int labelW() { return button ? 0 : wide ? w : (int) (w * 0.4); }
 
 	@Override
 	public int layout(Gfx g, int x, int y, int w) {
@@ -60,7 +66,7 @@ public class SettingRow extends Widget {
 			this.h = Controls.ROW_H + ch;
 		} else {
 			int cx = x + labelW();
-			int ch = control.layout(g, cx, y, w - labelW() - 12);
+			int ch = control.layout(g, cx, y, w - labelW() - (button ? 2 : 12));
 			this.h = Math.max(Controls.ROW_H, ch);
 		}
 		return h;
@@ -68,6 +74,11 @@ public class SettingRow extends Widget {
 
 	@Override
 	public void render(Gfx g, int mx, int my) {
+		if (button) {
+			control.render(g, mx, my);
+			if (control.hit(mx, my) && !setting.description().isBlank()) Widget.pendingTooltip = setting.description();
+			return;
+		}
 		boolean labelHover = mx >= x && mx < x + labelW() && my >= y && my < y + Controls.ROW_H;
 		g.text(g.fit(setting.name(), labelW() - 4), x + 2, y + 2, labelHover ? g.accent() : g.text());
 		if (labelHover && !setting.description().isBlank()) Widget.pendingTooltip = setting.description();
