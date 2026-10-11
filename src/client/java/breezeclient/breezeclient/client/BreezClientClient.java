@@ -40,6 +40,7 @@ public class BreezClientClient implements ClientModInitializer {
 		breezeclient.breezeclient.client.gui.GuiState.load();
 		Modules.registerAll(MODULES);
 		ModuleActions.install(MODULES);
+		breezeclient.breezeclient.client.gui.GuiState.CLIENT.friends.options(breezeclient.breezeclient.client.modules.OnlinePlayers::names);
 		var dir = FabricLoader.getInstance().getConfigDir().resolve("breez-client");
 		macros = new MacroStore(dir, MODULES);
 		macros.load();

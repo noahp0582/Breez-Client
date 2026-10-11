@@ -60,6 +60,8 @@ color picker, list editors with block/item search, key bind, hold-to-enable). `C
 - **Actions in the module pages:** everything that used to need a typed command is a button or field in an "Actions" section of the module it belongs to
   (right click the module): spawner chest, schematic load/origin, seed verify/clear, chunk/stash/geode/sus/coverage stats, export and clear, staff import,
   player lookup, and the pathing tasks (go to, mine, follow, tunnel, this way, stop, pause, resume). The buttons run the same commands, so chat still works.
+- **Pickers instead of typing:** every block, item and entity list has a "+ Add" picker: a category button, a search box and a scrollable list of everything
+  that can be added; click an entry to add it, click again to remove it. Staff, friends and trusted lists offer the players online right now.
 - **Friends:** `.friend add|remove|list` (green in PlayerESP/NameTags, never trigger KillSwitch); also editable in the Config tab.
 - **Config tab:** command prefix, humanization delay scale, camera turn speed, announce-all-toggles, "Alerts in chat" (off by default: finds show as merged pop-ups instead of filling chat).
 - **Profiles tab:** per-server world seed and staff list. **Macros tab:** create, edit, bind, run macros. **HUD tab:** drag HUD elements.

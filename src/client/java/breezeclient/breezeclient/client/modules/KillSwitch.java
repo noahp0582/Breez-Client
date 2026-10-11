@@ -29,7 +29,7 @@ public class KillSwitch extends Module {
 	private final BoolSetting spectator = add(new BoolSetting("Spectators", true));
 	private final BoolSetting ghosts = add(new BoolSetting("Tab-list ghosts", false));
 	private final BoolSetting anyPlayer = add(new BoolSetting("Any player", false));
-	private final StringListSetting trusted = add(new StringListSetting("Trusted", List.of()));
+	private final StringListSetting trusted = add(new StringListSetting("Trusted", List.of()).options(OnlinePlayers::names));
 	private final BoolSetting reconnect = add(new BoolSetting("Allow auto-reconnect", false));
 
 	private static KillSwitch instance;

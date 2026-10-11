@@ -524,32 +524,68 @@ public final class Controls {
 
 	// List editor (string / block / item / entity lists) --------------------------------------------------------------------------------------
 
+	/**
+	 * A list of ids shown as removable chips. "+ Add" opens a picker: a category button, a search box and a scrollable list of
+	 * everything that can be added; click an entry to add it, click again to remove it. Lists of free text (names) can still
+	 * be typed, and offer the online players when the setting has an options supplier.
+	 */
 	public static class ListEditor extends Widget {
+		private static final int VISIBLE = 9;
+
 		private static List<String> blocks, items, entities;
 
 		private final StringListSetting s;
 		private boolean adding;
 		private final TextBox box = new TextBox();
-		private List<String> suggestions = List.of();
 		private final List<int[]> chipRects = new ArrayList<>();
 		private int addY;
 
+		private int category;
+		private List<String> filtered = List.of();
+		private int scrollRow;
+		private boolean dirty = true;
+		private int listY, catW;
+		private int revealFrames;
+
+		/** Developer test hooks: open every picker at once and click an entry without a mouse. */
+		public static boolean devOpen;
+		public static ListEditor last;
+
+		public void devPick(int index) {
+			if (index >= 0 && index < filtered.size()) toggle(filtered.get(index));
+		}
+
+		public int devEntries() { return filtered.size(); }
+
 		public ListEditor(StringListSetting s) {
 			this.s = s;
-			box.placeholder = s.kind() == StringListSetting.Kind.PLAIN ? "type and press Enter" : "search...";
-			box.onChange = t -> suggestions = suggest(t);
+			this.adding = devOpen;
+			if (devOpen) revealFrames = 6;
+			last = this;
+			box.placeholder = pickerAvailable() ? "search..." : "type a name and press Enter";
+			box.onChange = t -> {
+				dirty = true;
+				scrollRow = 0;
+			};
 			box.onCommit = t -> {
 				String pick = t.trim();
-				if (s.kind() != StringListSetting.Kind.PLAIN) {
-					List<String> sg = suggest(pick);
-					if (!sg.isEmpty() && !all(s.kind()).contains(normalize(pick))) pick = sg.get(0);
-					else pick = normalize(pick);
-					if (!all(s.kind()).contains(pick)) return;
+				if (pick.isBlank()) return;
+				List<String> src = source();
+				if (src != null && s.kind() != StringListSetting.Kind.PLAIN) {
+					// typed text picks the best match (or the exact id)
+					String n = normalize(pick);
+					if (src.contains(n)) pick = n;
+					else {
+						List<String> sg = Fuzzy.rank(pick, src, 1);
+						if (sg.isEmpty()) return;
+						pick = sg.get(0);
+					}
+				} else if (src != null) {
+					for (String o : src) if (o.equalsIgnoreCase(pick)) pick = o;
 				}
-				if (!pick.isBlank()) s.add(pick);
+				s.add(s.format(pick));
 				box.setText("");
-				suggestions = List.of();
-				adding = false;
+				dirty = true;
 			};
 			box.onCancel = () -> adding = false;
 		}
@@ -579,18 +615,100 @@ public final class Controls {
 			};
 		}
 
-		private List<String> suggest(String q) {
-			if (s.kind() == StringListSetting.Kind.PLAIN || q.isBlank()) return List.of();
-			return Fuzzy.rank(q, all(s.kind()), 6);
+		/** Everything the picker offers, or null for a free text list with no options. */
+		private List<String> source() {
+			List<String> o = s.optionList();
+			if (o != null) return o;
+			return s.kind() == StringListSetting.Kind.PLAIN ? null : all(s.kind());
 		}
 
+		private boolean pickerAvailable() { return s.optionList() != null || s.kind() != StringListSetting.Kind.PLAIN; }
+
 		private static String shortName(String id) { return id.startsWith("minecraft:") ? id.substring(10) : id; }
+
+		// ---- categories ----
+
+		private static final String[] BLOCK_CATS = {"All", "Ores", "Storage", "Redstone", "Building", "Special"};
+		private static final String[] ITEM_CATS = {"All", "Valuables", "Storage", "Redstone", "Building", "Special"};
+
+		private String[] cats() {
+			if (s.optionList() != null) return new String[] {"All"};
+			return switch (s.kind()) {
+				case BLOCK -> BLOCK_CATS;
+				case ITEM -> ITEM_CATS;
+				default -> new String[] {"All"};
+			};
+		}
+
+		private static boolean has(String p, String... words) {
+			for (String w : words) if (p.contains(w)) return true;
+			return false;
+		}
+
+		private static boolean inCategory(String cat, String id) {
+			String p = shortName(id);
+			return switch (cat) {
+				case "Ores" -> has(p, "_ore") || p.equals("ancient_debris") || p.startsWith("raw_") || p.contains("debris");
+				case "Valuables" -> has(p, "netherite", "diamond", "emerald", "totem", "elytra", "golden_apple", "beacon", "nether_star", "trident",
+					"mace", "heavy_core", "enchanted_book", "shulker", "ancient_debris", "spawner", "dragon", "wither");
+				case "Storage" -> has(p, "chest", "barrel", "shulker", "hopper", "dropper", "dispenser", "furnace", "smoker", "crafter", "decorated_pot", "bundle");
+				case "Redstone" -> has(p, "redstone", "piston", "observer", "repeater", "comparator", "lever", "button", "pressure_plate", "tnt",
+					"daylight", "target", "note_block", "rail", "tripwire", "sculk_sensor", "lightning_rod", "dropper", "dispenser", "hopper");
+				case "Building" -> has(p, "planks", "bricks", "concrete", "glass", "wool", "terracotta", "slab", "stairs", "_wall", "fence", "door",
+					"carpet", "_log", "_wood", "quartz", "prismarine", "copper");
+				case "Special" -> has(p, "spawner", "beacon", "bedrock", "obsidian", "portal", "command_block", "structure", "barrier", "conduit",
+					"anchor", "lodestone", "trial", "vault", "reinforced", "sculk", "end_", "ancient", "amethyst", "_bed", "bed_", "dragon_egg");
+				default -> true;
+			};
+		}
+
+		private void refresh() {
+			List<String> src = source();
+			if (src == null) {
+				filtered = List.of();
+				return;
+			}
+			String cat = cats()[Math.min(category, cats().length - 1)];
+			List<String> pool = src;
+			if (!cat.equals("All")) {
+				pool = new ArrayList<>();
+				for (String id : src) if (inCategory(cat, id)) pool.add(id);
+			}
+			String q = box.text.trim();
+			filtered = q.isEmpty() ? pool : Fuzzy.rank(q, pool, 400);
+			scrollRow = Math.max(0, Math.min(scrollRow, Math.max(0, filtered.size() - VISIBLE)));
+			dirty = false;
+		}
+
+		/** Whether an entry (an unformatted id or name) is already in the list. */
+		private boolean added(String option) {
+			for (String it : s.get()) {
+				if (it.equalsIgnoreCase(option) || it.toLowerCase().startsWith(option.toLowerCase() + "=")) return true;
+			}
+			return false;
+		}
+
+		private void toggle(String option) {
+			if (added(option)) {
+				for (String it : new ArrayList<>(s.get())) {
+					if (it.equalsIgnoreCase(option) || it.toLowerCase().startsWith(option.toLowerCase() + "=")) s.remove(it);
+				}
+			} else {
+				s.add(s.format(option));
+			}
+		}
+
+		// ---- layout ----
 
 		@Override
 		protected int height(Gfx g, int w) {
 			int rows = layoutChips(g, w, false);
 			int hgt = rows * (ROW_H + 1) + ROW_H + 2;
-			if (adding) hgt += ROW_H + suggestions.size() * ROW_H;
+			if (adding) {
+				if (pickerAvailable() && (dirty || s.optionList() != null)) refresh();
+				hgt += ROW_H + 2; // category + search row
+				if (pickerAvailable()) hgt += VISIBLE * ROW_H + ROW_H + 2;
+			}
 			return hgt;
 		}
 
@@ -621,18 +739,50 @@ public final class Controls {
 				g.text("x", cx + r[2] - 9, cy + 2, hx ? 0xFFFF5555 : g.dim());
 			}
 			addY = y + rows * (ROW_H + 1);
+			if (adding && revealFrames > 0) {
+				revealFrames--;
+				Widget.reveal = this;
+			}
 			boolean hov = mx >= x && mx < x + 44 && my >= addY && my < addY + ROW_H;
 			g.rrect(x, addY, 44, ROW_H, hov ? g.theme.accentFaded(0.6) : g.widgetBg());
 			g.textCentered(adding ? "Close" : "+ Add", x + 22, addY + 2, g.text());
 			if (!adding) return;
-			box.layout(g, x, addY + ROW_H + 1, w);
-			box.render(g, mx, my);
-			int yy = box.y + box.h;
-			for (String sg : suggestions) {
-				if (mx >= x && mx < x + w && my >= yy && my < yy + ROW_H) g.rect(x, yy, w, ROW_H, g.hover());
-				g.text(g.fit(sg, w - 6), x + 4, yy + 2, s.contains(sg) ? g.dim() : g.text());
-				yy += ROW_H;
+
+			int rowY = addY + ROW_H + 2;
+			String[] cs = cats();
+			boolean showCat = cs.length > 1;
+			catW = showCat ? 78 : 0;
+			if (showCat) {
+				boolean ch = mx >= x && mx < x + catW && my >= rowY && my < rowY + ROW_H;
+				g.rrect(x, rowY, catW, ROW_H, ch ? g.theme.accentFaded(0.6) : g.widgetBg());
+				g.text(g.fit(cs[Math.min(category, cs.length - 1)] + " v", catW - 6), x + 4, rowY + 2, g.text());
 			}
+			box.layout(g, x + catW + (showCat ? 3 : 0), rowY, w - catW - (showCat ? 3 : 0));
+			box.render(g, mx, my);
+			if (!pickerAvailable()) return;
+
+			listY = rowY + ROW_H + 2;
+			int listH = VISIBLE * ROW_H;
+			g.rect(x, listY, w, listH, 0x55000000);
+			int shown = Math.min(VISIBLE, Math.max(0, filtered.size() - scrollRow));
+			for (int i = 0; i < shown; i++) {
+				String id = filtered.get(scrollRow + i);
+				int ry = listY + i * ROW_H;
+				boolean hv = mx >= x && mx < x + w - 5 && my >= ry && my < ry + ROW_H;
+				boolean on = added(id);
+				if (hv) g.rect(x, ry, w - 5, ROW_H, g.hover());
+				g.text(g.fit(shortName(id), w - 24), x + 4, ry + 2, on ? g.accent() : g.text());
+				if (on) g.text("+", x + w - 16, ry + 2, g.accent());
+			}
+			if (filtered.isEmpty()) g.text(box.text.isBlank() ? "Nothing to pick from." : "No match.", x + 4, listY + 2, g.dim());
+			if (filtered.size() > VISIBLE) {
+				int thumb = Math.max(8, listH * VISIBLE / filtered.size());
+				int track = listH - thumb;
+				int ty = listY + (filtered.size() - VISIBLE == 0 ? 0 : track * scrollRow / (filtered.size() - VISIBLE));
+				g.rect(x + w - 4, listY, 3, listH, 0x44FFFFFF);
+				g.rect(x + w - 4, ty, 3, thumb, g.accent());
+			}
+			g.text(filtered.size() + (filtered.size() == 1 ? " entry" : " entries") + "  scroll, click to add/remove", x + 2, listY + listH + 2, g.dim());
 		}
 
 		@Override
@@ -649,21 +799,37 @@ public final class Controls {
 			}
 			if (mx >= x && mx < x + 44 && my >= addY && my < addY + ROW_H) {
 				adding = !adding;
-				if (adding) Widget.setFocus(box);
+				if (adding) {
+					dirty = true;
+					scrollRow = 0;
+					revealFrames = 4;
+					Widget.setFocus(box);
+				}
 				return true;
 			}
 			if (adding) {
-				int yy = box.y + box.h;
-				for (String sg : suggestions) {
-					if (my >= yy && my < yy + ROW_H) {
-						s.add(sg);
-						box.setText("");
-						suggestions = List.of();
-						return true;
-					}
-					yy += ROW_H;
+				int rowY = addY + ROW_H + 2;
+				String[] cs = cats();
+				if (cs.length > 1 && mx >= x && mx < x + catW && my >= rowY && my < rowY + ROW_H) {
+					category = (category + 1) % cs.length;
+					scrollRow = 0;
+					dirty = true;
+					return true;
+				}
+				if (pickerAvailable() && my >= listY && my < listY + VISIBLE * ROW_H && mx < x + w - 5) {
+					int idx = scrollRow + (my - listY) / ROW_H;
+					if (idx >= 0 && idx < filtered.size()) toggle(filtered.get(idx));
 				}
 			}
+			return true;
+		}
+
+		@Override
+		public boolean scroll(int mx, int my, double amount) {
+			if (!adding || !pickerAvailable() || filtered.size() <= VISIBLE) return false;
+			if (mx < x || mx >= x + w || my < listY || my >= listY + VISIBLE * ROW_H) return false;
+			int step = amount > 0 ? -3 : 3;
+			scrollRow = Math.max(0, Math.min(scrollRow + step, filtered.size() - VISIBLE));
 			return true;
 		}
 

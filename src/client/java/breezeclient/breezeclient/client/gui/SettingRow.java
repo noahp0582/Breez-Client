@@ -100,6 +100,9 @@ public class SettingRow extends Widget {
 	}
 
 	@Override
+	public boolean scroll(int mx, int my, double amount) { return control.scroll(mx, my, amount); }
+
+	@Override
 	public void drag(int mx, int my) { control.drag(mx, my); }
 
 	@Override

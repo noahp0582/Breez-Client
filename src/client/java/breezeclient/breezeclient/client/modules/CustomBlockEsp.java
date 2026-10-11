@@ -13,7 +13,7 @@ import java.util.Set;
 
 /** ESP for a user-defined list of block ids (edit with .blockesp add/remove/list). */
 public class CustomBlockEsp extends EspModule {
-	public final StringListSetting blocks = add(new StringListSetting("Blocks", List.of("minecraft:diamond_ore", "minecraft:deepslate_diamond_ore")));
+	public final StringListSetting blocks = add(new StringListSetting("Blocks", List.of("minecraft:diamond_ore", "minecraft:deepslate_diamond_ore")).kind(StringListSetting.Kind.BLOCK));
 	private final ColorSetting color = add(new ColorSetting("Color", 0xFF33DDFF));
 	private List<String> applied = List.of();
 

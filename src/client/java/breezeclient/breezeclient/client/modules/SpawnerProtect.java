@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class SpawnerProtect extends Module {
 	private final NumberSetting radius = add(new NumberSetting("Stranger radius", 48, 8, 256), "Trigger", "A player this close triggers the protection.");
-	private final StringListSetting trusted = add(new StringListSetting("Trusted", List.of()), "Trigger", "Players that never trigger it.");
+	private final StringListSetting trusted = add(new StringListSetting("Trusted", List.of()).options(OnlinePlayers::names), "Trigger", "Players that never trigger it.");
 	private final BoolSetting salvage = add(new BoolSetting("Salvage spawners first", true), "Behavior", "Pick up spawners within 12 blocks before leaving. Off = leave immediately.");
 	private final NumberSetting maxSeconds = add(new NumberSetting("Max salvage time (s)", 45, 10, 180), "Behavior", "Leave anyway after this long.");
 	private final BoolSetting leave = add(new BoolSetting("Disconnect afterwards", true), "Behavior", "Leave the server when done. Off = only salvage.");

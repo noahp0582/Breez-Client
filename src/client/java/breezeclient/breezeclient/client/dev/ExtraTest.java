@@ -156,6 +156,23 @@ public final class ExtraTest {
 		if (ticks == 234) mc.setScreen(new breezeclient.breezeclient.client.gui.ModuleScreen(BreezClientClient.MODULES.get("SchematicBuilder")));
 		if (ticks == 244) shot(mc);
 		if (ticks == 246) mc.setScreen(null);
+		if (ticks == 250) {
+			breezeclient.breezeclient.client.gui.Controls.ListEditor.devOpen = true;
+			mc.setScreen(new breezeclient.breezeclient.client.gui.ModuleScreen(BreezClientClient.MODULES.get("BlockESP")));
+		}
+		if (ticks == 256) {
+			var ed = breezeclient.breezeclient.client.gui.Controls.ListEditor.last;
+			var blocks = breezeclient.breezeclient.client.Modules.blockEsp.blocks;
+			int before = blocks.get().size();
+			LOG.add("picker entries=" + (ed == null ? -1 : ed.devEntries()) + " blocksBefore=" + before);
+			if (ed != null) ed.devPick(5);
+			LOG.add("picker after click blocks=" + blocks.get().size());
+		}
+		if (ticks == 266) shot(mc);
+		if (ticks == 268) {
+			breezeclient.breezeclient.client.gui.Controls.ListEditor.devOpen = false;
+			mc.setScreen(null);
+		}
 		if (ticks == 200) {
 			LOG.add("chestLooter(minecart menu) netherite=" + count(mc, net.minecraft.world.item.Items.NETHERITE_INGOT) + " (expect still 5: refused)");
 			mc.player.closeContainer();

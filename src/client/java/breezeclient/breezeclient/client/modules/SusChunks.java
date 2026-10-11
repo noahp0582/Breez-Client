@@ -73,7 +73,7 @@ public class SusChunks extends Module {
 	private final NumberSetting sigThreshold = add(new NumberSetting("Signature threshold", 30, 5, 150), "Scoring",
 		"Minimum score to flag a chunk. 30 keeps only clear signatures; lower it to see weaker ones.", () -> mode.get() == Mode.SIGNATURES);
 
-	private final StringListSetting indicators = add(new StringListSetting("Indicators", DEFAULTS), "Weighted mode",
+	private final StringListSetting indicators = add(new StringListSetting("Indicators", DEFAULTS).kind(StringListSetting.Kind.BLOCK).optionFormat("%s=1"), "Weighted mode",
 		"Blocks that count, written as block_id=weight.", () -> mode.get() == Mode.WEIGHTED);
 	private final NumberSetting blockEntityWeight = add(new NumberSetting("Block entity weight", 0.25, 0, 5), "Weighted mode",
 		"Extra score per block entity in the chunk.", () -> mode.get() == Mode.WEIGHTED);

@@ -42,6 +42,14 @@ public class Window {
 		int avail = Math.max(40, maxH - HEADER - PAD * 2);
 		viewH = Math.min(contentH + PAD, avail);
 		scroll = ScrollMath.clamp(scroll, contentH + PAD, viewH);
+		Widget r = Widget.reveal;
+		if (r != null && !collapsed() && r.h > 0 && r.x >= x() && r.x < x() + w) {
+			int top = y() + HEADER, bottom = top + viewH;
+			if (r.y + r.h > bottom) scroll += r.h <= viewH ? r.y + r.h - bottom : r.y - top;
+			else if (r.y < top) scroll -= top - r.y;
+			scroll = ScrollMath.clamp(scroll, contentH + PAD, viewH);
+			Widget.reveal = null;
+		}
 	}
 
 	public boolean hit(int mx, int my) { return mx >= x() && mx < x() + w && my >= y() && my < y() + height(); }

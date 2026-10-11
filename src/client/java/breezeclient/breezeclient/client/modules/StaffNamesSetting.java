@@ -13,7 +13,10 @@ import java.util.List;
  * (the same list as .staff and the Profiles tab), not in the module's own settings, so it is not saved twice.
  */
 public class StaffNamesSetting extends StringListSetting {
-	public StaffNamesSetting() { super("Staff names", List.of()); }
+	public StaffNamesSetting() {
+		super("Staff names", List.of());
+		options(OnlinePlayers::names);
+	}
 
 	private void save() {
 		if (BreezClientClient.config != null) BreezClientClient.config.save();

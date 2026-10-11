@@ -17,7 +17,7 @@ public class AutoEat extends Module {
 	private final NumberSetting hunger = add(new NumberSetting("Eat below", 14, 1, 19));
 	private final StringListSetting avoid = add(new StringListSetting("Avoid", List.of(
 		"minecraft:enchanted_golden_apple", "minecraft:golden_apple", "minecraft:rotten_flesh", "minecraft:poisonous_potato",
-		"minecraft:spider_eye", "minecraft:pufferfish", "minecraft:chorus_fruit", "minecraft:suspicious_stew")));
+		"minecraft:spider_eye", "minecraft:pufferfish", "minecraft:chorus_fruit", "minecraft:suspicious_stew")).kind(StringListSetting.Kind.ITEM));
 
 	private int savedSlot = -1;
 	private int ticksEating;

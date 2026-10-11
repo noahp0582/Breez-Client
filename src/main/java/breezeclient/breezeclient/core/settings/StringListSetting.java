@@ -11,6 +11,8 @@ public class StringListSetting extends Setting<List<String>> {
 	public enum Kind { PLAIN, BLOCK, ITEM, ENTITY }
 
 	private Kind kind = Kind.PLAIN;
+	private java.util.function.Supplier<List<String>> options;
+	private String optionFormat = "%s";
 
 	public StringListSetting(String name, List<String> def) {
 		super(name, normalize(def));
@@ -23,6 +25,31 @@ public class StringListSetting extends Setting<List<String>> {
 	}
 
 	public Kind kind() { return kind; }
+
+	/** What the GUI picker offers instead of the registry for this list (for example the players online). */
+	public StringListSetting options(java.util.function.Supplier<List<String>> o) {
+		this.options = o;
+		return this;
+	}
+
+	/** How a picked option is written into the list, e.g. "%s=1" for lists of id=weight. */
+	public StringListSetting optionFormat(String f) {
+		this.optionFormat = f;
+		return this;
+	}
+
+	/** The picker's options, or null when this list has none of its own. */
+	public List<String> optionList() {
+		if (options == null) return null;
+		try {
+			List<String> o = options.get();
+			return o == null ? List.of() : o;
+		} catch (RuntimeException e) {
+			return List.of();
+		}
+	}
+
+	public String format(String option) { return String.format(optionFormat, option); }
 
 	private static List<String> normalize(List<String> in) {
 		List<String> out = new ArrayList<>();

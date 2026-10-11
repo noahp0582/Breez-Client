@@ -9,6 +9,9 @@ public abstract class Widget {
 	/** Tooltip requested during this frame, drawn last by the screen. */
 	public static String pendingTooltip;
 
+	/** A widget that just grew (an opened picker) asks its window to scroll it into view; the window clears this once done. */
+	public static Widget reveal;
+
 	public static Widget focused() { return focus; }
 
 	public static void setFocus(Widget wd) { focus = wd; }
