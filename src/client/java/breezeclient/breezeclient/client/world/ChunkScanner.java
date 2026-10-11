@@ -1,6 +1,6 @@
 package breezeclient.breezeclient.client.world;
 
-import breezeclient.breezeclient.client.session.Guard;
+import breezeclient.breezeclient.core.Guard;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
@@ -141,12 +141,16 @@ public final class ChunkScanner {
 	private static void resync(Minecraft mc, ClientLevel level) {
 		int radius = mc.options.getEffectiveRenderDistance() + 3; // the client chunk cache holds the render distance plus a margin
 		ChunkPos here = mc.player.chunkPosition();
-		for (int dx = -radius; dx <= radius; dx++) {
-			for (int dz = -radius; dz <= radius; dz++) {
-				int cx = here.x + dx, cz = here.z + dz;
-				if (level.getChunkSource().getChunk(cx, cz, false) == null) continue;
-				long key = ChunkPos.asLong(cx, cz);
-				if (LOADED.add(key)) QUEUE.addLast(key);
+		// square rings outward from the player, so the nearest chunks are scanned first
+		for (int ring = 0; ring <= radius; ring++) {
+			for (int dx = -ring; dx <= ring; dx++) {
+				int step = Math.abs(dx) == ring ? 1 : Math.max(1, 2 * ring); // inside the ring only its two edge rows count
+				for (int dz = -ring; dz <= ring; dz += step) {
+					int cx = here.x + dx, cz = here.z + dz;
+					if (level.getChunkSource().getChunk(cx, cz, false) == null) continue;
+					long key = ChunkPos.asLong(cx, cz);
+					if (LOADED.add(key)) QUEUE.addLast(key);
+				}
 			}
 		}
 	}

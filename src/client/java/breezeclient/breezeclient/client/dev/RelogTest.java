@@ -1,6 +1,6 @@
 package breezeclient.breezeclient.client.dev;
 
-import breezeclient.breezeclient.client.session.Guard;
+import breezeclient.breezeclient.core.Guard;
 import breezeclient.breezeclient.client.world.ChunkScanner;
 import breezeclient.breezeclient.client.world.ScanTarget;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;

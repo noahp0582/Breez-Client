@@ -1,6 +1,6 @@
 package breezeclient.breezeclient.client.world;
 
-import breezeclient.breezeclient.client.session.Guard;
+import breezeclient.breezeclient.core.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;

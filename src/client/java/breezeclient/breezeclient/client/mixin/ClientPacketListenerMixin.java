@@ -1,6 +1,6 @@
 package breezeclient.breezeclient.client.mixin;
 
-import breezeclient.breezeclient.client.session.Guard;
+import breezeclient.breezeclient.core.Guard;
 import breezeclient.breezeclient.client.world.ChunkAgeTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;

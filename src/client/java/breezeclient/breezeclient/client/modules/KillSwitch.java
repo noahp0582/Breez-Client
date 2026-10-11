@@ -2,7 +2,7 @@ package breezeclient.breezeclient.client.modules;
 
 import breezeclient.breezeclient.client.safety.Reconnect;
 import breezeclient.breezeclient.client.safety.StaffTracker;
-import breezeclient.breezeclient.client.session.Guard;
+import breezeclient.breezeclient.core.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
@@ -67,6 +67,8 @@ public class KillSwitch extends Module {
 		try {
 			log(hit);
 			AlertWebhook.safety(why);
+		} catch (RuntimeException e) {
+			// a failing log or alert must not escape: on the tick path it would make ModuleManager switch KillSwitch off
 		} finally {
 			disconnect(why, reconnect.get()); // a failing log or alert must never keep us connected
 		}

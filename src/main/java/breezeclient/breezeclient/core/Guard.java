@@ -1,4 +1,4 @@
-package breezeclient.breezeclient.client.session;
+package breezeclient.breezeclient.core;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

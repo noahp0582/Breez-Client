@@ -1,6 +1,6 @@
 package breezeclient.breezeclient.client.world;
 
-import breezeclient.breezeclient.client.session.Guard;
+import breezeclient.breezeclient.core.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.core.world.ChunkAge;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
@@ -56,7 +57,8 @@ public final class ChunkAgeTracker {
 	public static void register() {
 		// both run inside the chunk packet handler, so they must not throw (see Guard)
 		ClientChunkEvents.CHUNK_LOAD.register((level, chunk) -> Guard.run("ChunkAge load", () -> current().onLoad(chunk.getPos().toLong(), tick)));
-		ClientChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> Guard.run("ChunkAge unload", () -> current().onUnload(chunk.getPos().toLong(), ChunkAgeTracker::hasLiquid)));
+		// keyed by the level that unloads: during a disconnect mc.level is already null and would file these under "none"
+		ClientChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> Guard.run("ChunkAge unload", () -> current(level).onUnload(chunk.getPos().toLong(), ChunkAgeTracker::hasLiquid)));
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			if (mc.level == null) return;
 			tick++;
@@ -67,17 +69,20 @@ public final class ChunkAgeTracker {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> saveAll());
 	}
 
-	private static String worldKey() {
-		var mc = Minecraft.getInstance();
-		String dim = mc.level == null ? "none" : mc.level.dimension().identifier().toString();
+	private static String worldKey() { return worldKey(Minecraft.getInstance().level); }
+
+	private static String worldKey(ClientLevel level) {
+		String dim = level == null ? "none" : level.dimension().identifier().toString();
 		return (Session.serverKey() + "_" + dim).replaceAll("[^A-Za-z0-9._-]", "_").toLowerCase(Locale.ROOT);
 	}
 
 	private static Path dir() { return FabricLoader.getInstance().getConfigDir().resolve("breez-client").resolve("chunks"); }
 
 	/** The classifier for the world (server + dimension) the player is in right now. */
-	public static ChunkAge current() {
-		String k = worldKey();
+	public static ChunkAge current() { return current(Minecraft.getInstance().level); }
+
+	private static ChunkAge current(ClientLevel level) {
+		String k = worldKey(level);
 		currentKey = k;
 		return BY_WORLD.computeIfAbsent(k, key -> {
 			ChunkAge a = new ChunkAge(WINDOW_TICKS);

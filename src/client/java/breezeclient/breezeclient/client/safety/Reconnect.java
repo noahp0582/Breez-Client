@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.safety;
 
+import breezeclient.breezeclient.core.Guard;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -36,13 +37,13 @@ public final class Reconnect {
 	private Reconnect() {}
 
 	public static void register() {
-		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> Guard.run("Reconnect join", () -> {
 			ServerData d = mc.getCurrentServer();
 			last = d; // singleplayer has no server data, so there is nothing to reconnect to
 			joinedAt = System.currentTimeMillis();
 			countdown = -1;
 			suppressed = false;
-		});
+		}));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> disconnectedAt = System.currentTimeMillis());
 		ScreenEvents.AFTER_INIT.register((mc, screen, w, h) -> {
 			if (screen instanceof DisconnectedScreen) {

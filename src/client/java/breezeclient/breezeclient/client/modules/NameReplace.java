@@ -10,6 +10,9 @@ import java.util.function.Function;
 
 /** The one place that replaces a player's name inside a styled chat component. Whole names only; every other style is kept. */
 final class NameReplace {
+	/** Shown instead of a message the name hooks could not process, so a failure never lets your real name through. */
+	static final Component FAILED = Component.literal("[message hidden: name protection failed]");
+
 	private NameReplace() {}
 
 	/** @param replacement builds the text to put in, given the style of the text it replaces */

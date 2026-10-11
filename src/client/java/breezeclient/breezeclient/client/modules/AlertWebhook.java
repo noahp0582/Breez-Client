@@ -1,7 +1,7 @@
 package breezeclient.breezeclient.client.modules;
 
 import breezeclient.breezeclient.client.gui.Toasts;
-import breezeclient.breezeclient.client.session.Guard;
+import breezeclient.breezeclient.core.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;

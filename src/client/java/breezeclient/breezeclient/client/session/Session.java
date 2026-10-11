@@ -3,6 +3,7 @@ package breezeclient.breezeclient.client.session;
 import breezeclient.breezeclient.client.Modules;
 import breezeclient.breezeclient.client.world.ChunkScanner;
 import breezeclient.breezeclient.client.world.Waypoints;
+import breezeclient.breezeclient.core.Guard;
 import breezeclient.breezeclient.core.config.ConfigManager;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
