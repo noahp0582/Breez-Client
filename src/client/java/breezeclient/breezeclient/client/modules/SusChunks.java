@@ -242,7 +242,7 @@ public class SusChunks extends Module {
 	}
 
 	/** What one chunk's hits contained when they were last read; reused while the hit positions are unchanged. */
-	private record Snapshot(long sig, Map<String, List<Pos>> byId, boolean natural, List<ActivityPos> activity) {}
+	private record Snapshot(long sig, Map<String, List<Pos>> byId, boolean natural, boolean big, List<ActivityPos> activity) {}
 
 	/** A furnace, campfire or lamp: its lit state changes without the position set changing, so it is re-read each pass. */
 	private record ActivityPos(BlockPos pos, String id) {}
@@ -252,6 +252,7 @@ public class SusChunks extends Module {
 	private void evaluateSignatures(ClientLevel level, ChunkPos mine) {
 		Map<Long, Snapshot> perChunk = new HashMap<>();
 		Set<Long> natural = new HashSet<>();
+		Set<Long> bigNatural = new HashSet<>();
 		for (Map.Entry<Long, List<BlockPos>> en : target.hitsByChunk().entrySet()) {
 			// the scanner hands over a fresh list on every refresh, so compare positions, not identity; block states are
 			// only read when the positions changed (a block swapped for another at the same spot shows up on the next change)
@@ -268,11 +269,15 @@ public class SusChunks extends Module {
 				}
 				Map<String, Integer> counts = new HashMap<>();
 				for (Map.Entry<String, List<Pos>> e : byId.entrySet()) counts.put(e.getKey(), e.getValue().size());
-				snap = new Snapshot(sig, byId, !BaseSignatures.naturalKinds(counts).isEmpty(), activity);
+				var kinds = BaseSignatures.naturalKinds(counts);
+				boolean big = false;
+				for (var k : kinds) big |= BaseSignatures.isBig(k);
+				snap = new Snapshot(sig, byId, !kinds.isEmpty(), big, activity);
 				snapshots.put(en.getKey(), snap);
 			}
 			perChunk.put(en.getKey(), snap);
 			if (snap.natural()) natural.add(en.getKey());
+			if (snap.big()) bigNatural.add(en.getKey());
 		}
 		snapshots.keySet().retainAll(perChunk.keySet());
 		BaseSignatures.Config cfg = new BaseSignatures.Config(minStack.asInt(), stackRadius.asInt(), minHoppers.asInt(),
@@ -313,7 +318,20 @@ public class SusChunks extends Module {
 				}
 				own = view;
 			}
-			var findings = new ArrayList<>(BaseSignatures.evaluate(own, nearNatural, local, cfg));
+			// trial chambers, ancient cities and strongholds are big and patchy: look two chunks around them, and be stricter
+			boolean nearBig = false;
+			if (ignoreNatural.get()) {
+				for (int dx = -2; dx <= 2 && !nearBig; dx++) {
+					for (int dz = -2; dz <= 2; dz++) {
+						if (bigNatural.contains(ChunkPos.asLong(cx + dx, cz + dz))) {
+							nearBig = true;
+							break;
+						}
+					}
+				}
+			}
+			nearNatural |= nearBig;
+			var findings = new ArrayList<>(BaseSignatures.evaluate(own, nearNatural, nearBig, local, cfg));
 			if (own.containsKey(BaseSignatures.SPAWNER) || own.containsKey(BaseSignatures.HOPPER)) {
 				Map<String, List<Pos>> merged = new HashMap<>();
 				for (int dx = -1; dx <= 1; dx++) {
@@ -326,7 +344,7 @@ public class SusChunks extends Module {
 						}
 					}
 				}
-				findings.addAll(BaseSignatures.evaluateClusters(merged, enabled, cfg, cx, cz));
+				findings.addAll(BaseSignatures.evaluateClusters(merged, enabled, cfg, cx, cz, nearBig));
 			}
 			if (enabled.contains(Signature.ENTITY_CLUSTER) && entities.containsKey(key)) {
 				List<BaseSignatures.EntityPoint> merged = new ArrayList<>();

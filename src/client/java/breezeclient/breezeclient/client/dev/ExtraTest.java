@@ -116,6 +116,11 @@ public final class ExtraTest {
 			var hit = new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos), net.minecraft.core.Direction.UP, pos, false);
 			mc.gameMode.useItemOn(mc.player, net.minecraft.world.InteractionHand.MAIN_HAND, hit);
 		}
+		if (ticks == 160) cmd(mc, "place structure minecraft:trial_chambers -110 -25 -60");
+		if (ticks == 260) {
+			for (int i = 0; i < 6; i++) cmd(mc, "setblock " + (-113 + i) + " -20 -58 minecraft:hopper");
+			for (int i = 0; i < 3; i++) cmd(mc, "setblock " + (-113 + i) + " -19 -58 minecraft:barrel");
+		}
 		if (ticks == 150) {
 			LOG.add("chestLooter(block chest) netherite=" + count(mc, net.minecraft.world.item.Items.NETHERITE_INGOT) + " (expect 5)");
 			mc.player.closeContainer();
@@ -169,6 +174,20 @@ public final class ExtraTest {
 			LOG.add("picker after click blocks=" + blocks.get().size());
 		}
 		if (ticks == 266) shot(mc);
+		if (ticks == 272) {
+			var p0 = mc.player.position();
+			LOG.add(String.format("freecam: player before = %.2f %.2f %.2f", p0.x, p0.y, p0.z));
+			BreezClientClient.MODULES.get("Freecam").setEnabled(true);
+			mc.options.keyUp.setDown(true);
+		}
+		if (ticks == 296) {
+			var p1 = mc.player.position();
+			var c1 = mc.getCameraEntity().position();
+			LOG.add(String.format("freecam: player after = %.2f %.2f %.2f, camera = %.2f %.2f %.2f, active=%s", p1.x, p1.y, p1.z, c1.x, c1.y, c1.z,
+				breezeclient.breezeclient.client.modules.Freecam.active()));
+			mc.options.keyUp.setDown(false);
+			BreezClientClient.MODULES.get("Freecam").setEnabled(false);
+		}
 		if (ticks == 268) {
 			breezeclient.breezeclient.client.gui.Controls.ListEditor.devOpen = false;
 			mc.setScreen(null);
@@ -193,6 +212,9 @@ public final class ExtraTest {
 			cmd(mc, "forceload add -200 0");
 			cmd(mc, "forceload add 100 40");
 		}
+		if (ticks == 96) {
+			cmd(mc, "forceload add -160 -100 -60 -20");
+		}
 		if (ticks == 100) {
 			// batch 1 controls in chunk (6,2): building blocks, lit campfire, an animal pen, armor stands and a corridor
 			cmd(mc, "fill 96 70 40 107 70 40 minecraft:white_concrete");
@@ -211,15 +233,53 @@ public final class ExtraTest {
 			for (String c : List.of("-200 41 0", "-199 41 0", "-198 41 0")) cmd(mc, "setblock " + c + " minecraft:chest");
 		}
 		// the scanner refreshes already-loaded chunks round-robin, so allow a full pass before expecting the control to show up
-		if (ticks == 300) susReport("SIGNATURES, positive control placed at tick 100");
+		if (ticks == 600) {
+			// permissive settings: every signature, a low threshold, so anything a chamber can trip shows up
+			set("SusChunks", "Looking for", breezeclient.breezeclient.core.sus.BaseSignatures.Preset.ALL_BASES);
+			set("SusChunks", "Signature threshold", 5.0);
+			set("SusChunks", "Ignore natural structures", false);
+		}
+		if (ticks == 780) susReport("natural structure handling OFF");
+		if (ticks == 790) set("SusChunks", "Ignore natural structures", true);
+		if (ticks == 880) {
+			// what is really in the trial chamber area on the client
+			var level = mc.level;
+			java.util.Map<String, Integer> counts = new java.util.TreeMap<>();
+			int loaded = 0;
+			var mp = new net.minecraft.core.BlockPos.MutableBlockPos();
+			for (int cx = -12; cx <= -3; cx++) {
+				for (int cz = -9; cz <= 0; cz++) {
+					var chunk = level.getChunkSource().getChunk(cx, cz, false);
+					if (chunk == null) continue;
+					loaded++;
+					for (int x = 0; x < 16; x++) {
+						for (int z = 0; z < 16; z++) {
+							for (int y = -64; y < 30; y++) {
+								var st = chunk.getBlockState(mp.set(cx * 16 + x, y, cz * 16 + z));
+								if (st.isAir()) continue;
+								String id = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath();
+								if (id.contains("trial") || id.contains("vault") || id.contains("copper") || id.contains("tuff_brick") || id.equals("chest")
+									|| id.equals("barrel") || id.equals("dispenser") || id.equals("dropper") || id.equals("hopper") || id.equals("spawner")
+									|| id.contains("decorated") || id.contains("crafter") || id.contains("comparator") || id.contains("repeater") || id.contains("observer")
+									|| id.contains("piston") || id.contains("redstone") || id.contains("bulb")) {
+									counts.merge(id, 1, Integer::sum);
+								}
+							}
+						}
+					}
+				}
+			}
+			LOG.add("trial area: loaded chunks=" + loaded + " notable blocks=" + counts);
+		}
+		if (ticks == 900) susReport("SIGNATURES, positive control placed at tick 100");
 		if (ticks == 130) shot(mc);
 		if (ticks == 140) mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
 		if (ticks == 175) shot(mc);
-		if (ticks == 310) {
+		if (ticks == 910) {
 			check(mc);
 			autoLogProbe(mc);
 		}
-		if (ticks == 400) {
+		if (ticks == 1000) {
 			append("autoLogDisconnected=false");
 			mc.stop();
 		}
@@ -265,6 +325,12 @@ public final class ExtraTest {
 			+ ", coverage chunks=" + breezeclient.breezeclient.client.world.CoverageTracker.count()
 			+ ", friend steve=" + breezeclient.breezeclient.client.modules.Friends.is("Steve"));
 		var top = breezeclient.breezeclient.client.modules.SusChunks.top(500);
+		for (var r : top) {
+			if (r.chunkX() >= -12 && r.chunkX() <= -3 && r.chunkZ() >= -9 && r.chunkZ() <= 0) {
+				LOG.add(String.format("  [trial chamber area] %.0f  %s  chunk (%d,%d)", r.score(), r.label(), r.chunkX(), r.chunkZ()));
+				for (String a : r.all()) LOG.add("      > " + a);
+			}
+		}
 		LOG.add("SusChunks[" + mode + "] flagged " + top.size() + " chunks");
 		for (var r : top.subList(0, Math.min(8, top.size()))) {
 			LOG.add(String.format("  %.0f  %s  chunk (%d,%d)", r.score(), r.label(), r.chunkX(), r.chunkZ()));

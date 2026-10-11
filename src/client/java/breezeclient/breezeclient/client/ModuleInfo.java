@@ -53,7 +53,7 @@ public final class ModuleInfo {
 		m("HitParticles", "Bursts of particles when you hit something. Visual and local only.");
 		m("NameProtect", "Replaces your own name in chat with an alias so clips do not show it.");
 		m("CustomCrosshair", "Replaces the vanilla crosshair with a configurable one.");
-		m("AimAssist", "Gently pulls your aim toward the nearest target inside a view cone, with eased, mouse-like turning.");
+		m("AimAssist", "Adds a small correction toward the target nearest your crosshair each tick: a fraction of the remaining angle, capped, faded near the crosshair and snapped to mouse steps. You stay in control; it never snaps.");
 		m("Triggerbot", "Attacks when your crosshair is on a valid target and the weapon is recharged, after a small random reaction delay.");
 		m("HoverTotem", "In the inventory, puts a totem in your offhand: the one under the mouse, or any when the inventory opens.");
 		m("AnchorMacro", "Charges the respawn anchor you look at with glowstone, switches item and detonates it.");

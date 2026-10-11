@@ -21,6 +21,11 @@ public abstract class MinecraftMixin {
 		if (Freecam.active()) ci.cancel();
 	}
 
+	@Inject(method = "pickBlock", at = @At("HEAD"), cancellable = true)
+	private void breez$noPick(CallbackInfo ci) {
+		if (Freecam.active()) ci.cancel();
+	}
+
 	@Inject(method = "continueAttack", at = @At("HEAD"), cancellable = true)
 	private void breez$noContinue(boolean bl, CallbackInfo ci) {
 		if (Freecam.active()) ci.cancel();

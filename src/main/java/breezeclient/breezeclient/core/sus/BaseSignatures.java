@@ -146,6 +146,31 @@ public final class BaseSignatures {
 		"minecraft:vault", "minecraft:nether_bricks", "minecraft:nether_brick_fence", "minecraft:gilded_blackstone", "minecraft:purpur_block",
 		"minecraft:tnt", "minecraft:chiseled_sandstone", "minecraft:tripwire_hook");
 
+	private static final List<String> OXIDATION = List.of("", "exposed_", "weathered_", "oxidized_");
+
+	/** Copper bulbs and grates in any oxidation and waxed state: how trial chambers are built, and rare anywhere else. */
+	public static final Set<String> TRIAL_MARKERS = trialMarkers();
+
+	private static Set<String> trialMarkers() {
+		Set<String> s = new LinkedHashSet<>();
+		for (String ox : OXIDATION) {
+			for (String wax : List.of("", "waxed_")) {
+				s.add("minecraft:" + wax + ox + "copper_bulb");
+				s.add("minecraft:" + wax + ox + "copper_grate");
+			}
+		}
+		return Collections.unmodifiableSet(s);
+	}
+
+	/** Structures that cover several chunks and have long stretches without their tell-tale blocks. */
+	public static boolean isBig(Natural n) {
+		return n == Natural.TRIAL_CHAMBER || n == Natural.ANCIENT_CITY || n == Natural.STRONGHOLD;
+	}
+
+	/** Near a big natural structure these need much more before they count (trial chambers do contain hoppers and dispensers). */
+	private static final int STRICT_HOPPERS = 10;
+	private static final int STRICT_FARM_PARTS = 5;
+
 	private static Set<String> shulkers() {
 		Set<String> s = new LinkedHashSet<>();
 		s.add("minecraft:shulker_box");
@@ -176,6 +201,7 @@ public final class BaseSignatures {
 		s.addAll(SPAWNER_NATURAL_MARKERS);
 		s.addAll(BUILDING_BLOCKS);
 		s.addAll(ACTIVITY_BASE);
+		s.addAll(TRIAL_MARKERS);
 		return s;
 	}
 
@@ -201,7 +227,14 @@ public final class BaseSignatures {
 		if (counts.getOrDefault("minecraft:reinforced_deepslate", 0) >= 1 || counts.getOrDefault("minecraft:sculk_shrieker", 0) >= 1
 			|| counts.getOrDefault("minecraft:sculk_catalyst", 0) >= 2 || counts.getOrDefault("minecraft:sculk", 0) >= 20) out.add(Natural.ANCIENT_CITY);
 
-		if (counts.getOrDefault("minecraft:trial_spawner", 0) >= 1 || counts.getOrDefault("minecraft:vault", 0) >= 1) out.add(Natural.TRIAL_CHAMBER);
+		int bulbs = 0, grates = 0;
+		for (String id : TRIAL_MARKERS) {
+			if (id.endsWith("copper_bulb")) bulbs += counts.getOrDefault(id, 0);
+			else grates += counts.getOrDefault(id, 0);
+		}
+		if (counts.getOrDefault("minecraft:trial_spawner", 0) >= 1 || counts.getOrDefault("minecraft:vault", 0) >= 1 || bulbs >= 2 || grates >= 4) {
+			out.add(Natural.TRIAL_CHAMBER);
+		}
 
 		if (counts.getOrDefault("minecraft:nether_bricks", 0) >= 10 || counts.getOrDefault("minecraft:nether_brick_fence", 0) >= 6) out.add(Natural.NETHER_FORTRESS);
 
@@ -269,7 +302,7 @@ public final class BaseSignatures {
 	}
 
 	/** Spawner stacks, spawners with farm parts and hopper groups. {@code anchorOk} decides which group is "ours". */
-	private static List<Finding> clusterFindings(Map<String, List<Pos>> blocks, Set<Signature> enabled, Config cfg, Predicate<Pos> anchorOk) {
+	private static List<Finding> clusterFindings(Map<String, List<Pos>> blocks, Set<Signature> enabled, Config cfg, Predicate<Pos> anchorOk, boolean strict) {
 		List<Finding> out = new ArrayList<>();
 		List<Pos> spawners = blocks.getOrDefault(SPAWNER, List.of());
 
@@ -291,7 +324,7 @@ public final class BaseSignatures {
 				if (!anchorOk.test(s)) continue;
 				List<Pos> near = new ArrayList<>();
 				for (Pos p : support) if (d2(s, p) <= r2) near.add(p);
-				if (near.size() >= 2) {
+				if (near.size() >= (strict ? STRICT_FARM_PARTS : 2)) {
 					near.add(s);
 					out.add(box(Signature.SPAWNER_FARM, 38, "spawner with " + (near.size() - 1) + " hopper/redstone parts nearby", near));
 					break;
@@ -300,13 +333,14 @@ public final class BaseSignatures {
 		}
 
 		List<Pos> hoppers = blocks.getOrDefault(HOPPER, List.of());
-		if (enabled.contains(Signature.HOPPER_STORAGE) && hoppers.size() >= cfg.minHoppers()) {
+		int minHoppers = strict ? Math.max(cfg.minHoppers(), STRICT_HOPPERS) : cfg.minHoppers();
+		if (enabled.contains(Signature.HOPPER_STORAGE) && hoppers.size() >= minHoppers) {
 			List<Pos> best = List.of();
 			for (List<Pos> c : clusters(hoppers, HOPPER_LINK)) {
 				if (c.size() > best.size() && anchorOk.test(corner(c))) best = c;
 			}
-			if (best.size() >= cfg.minHoppers()) {
-				double score = Math.min(50, 30 + 2.0 * (best.size() - cfg.minHoppers()));
+			if (best.size() >= minHoppers) {
+				double score = Math.min(50, 30 + 2.0 * (best.size() - minHoppers));
 				List<Pos> fedPos = new ArrayList<>();
 				for (Pos c : positions(blocks, CONTAINERS)) {
 					for (Pos h : best) {
@@ -330,10 +364,15 @@ public final class BaseSignatures {
 	 * chunk border is counted whole. Only groups anchored in chunk (cx, cz) are returned, so each is reported by one chunk.
 	 */
 	public static List<Finding> evaluateClusters(Map<String, List<Pos>> merged, Set<Signature> enabled, Config cfg, int cx, int cz) {
+		return evaluateClusters(merged, enabled, cfg, cx, cz, false);
+	}
+
+	/** @param strict true near a big natural structure (see {@link #isBig}): hopper groups and spawner farms need much more. */
+	public static List<Finding> evaluateClusters(Map<String, List<Pos>> merged, Set<Signature> enabled, Config cfg, int cx, int cz, boolean strict) {
 		Set<Signature> wanted = EnumSet.noneOf(Signature.class);
 		for (Signature s : enabled) if (CLUSTER.contains(s)) wanted.add(s);
 		if (wanted.isEmpty()) return List.of();
-		return clusterFindings(merged, wanted, cfg, p -> Math.floorDiv(p.x(), 16) == cx && Math.floorDiv(p.z(), 16) == cz);
+		return clusterFindings(merged, wanted, cfg, p -> Math.floorDiv(p.x(), 16) == cx && Math.floorDiv(p.z(), 16) == cz, strict);
 	}
 
 	private static int find(int[] p, int i) {
@@ -354,7 +393,12 @@ public final class BaseSignatures {
 	 * @param enabled       which signatures to look for
 	 */
 	public static List<Finding> evaluate(Map<String, List<Pos>> blocks, boolean naturalNearby, Set<Signature> enabled, Config cfg) {
-		List<Finding> out = new ArrayList<>(clusterFindings(blocks, enabled, cfg, p -> true));
+		return evaluate(blocks, naturalNearby, false, enabled, cfg);
+	}
+
+	/** @param strict true near a big natural structure (see {@link #isBig}): hopper groups and spawner farms need much more. */
+	public static List<Finding> evaluate(Map<String, List<Pos>> blocks, boolean naturalNearby, boolean strict, Set<Signature> enabled, Config cfg) {
+		List<Finding> out = new ArrayList<>(clusterFindings(blocks, enabled, cfg, p -> true, strict));
 		List<Pos> spawners = blocks.getOrDefault(SPAWNER, List.of());
 		List<Pos> containerPos = positions(blocks, CONTAINERS);
 

@@ -259,4 +259,36 @@ class BaseSignaturesTest {
 		assertTrue(long16 > short12);
 		assertTrue(many > long16);
 	}
+
+	@Test
+	void copperBulbsAndGratesMarkATrialChamber() {
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:waxed_copper_bulb", 3)).contains(Natural.TRIAL_CHAMBER));
+		assertTrue(BaseSignatures.naturalKinds(counts("minecraft:waxed_oxidized_copper_grate", 5)).contains(Natural.TRIAL_CHAMBER));
+		assertFalse(BaseSignatures.naturalKinds(counts("minecraft:copper_bulb", 1)).contains(Natural.TRIAL_CHAMBER));
+		assertTrue(BaseSignatures.isBig(Natural.TRIAL_CHAMBER));
+		assertFalse(BaseSignatures.isBig(Natural.VILLAGE));
+		assertTrue(BaseSignatures.scanIds().contains("minecraft:waxed_exposed_copper_bulb"));
+	}
+
+	@Test
+	void nearABigStructureAFewHoppersAreNotABase() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		for (int i = 0; i < 6; i++) put(b, "minecraft:hopper", new Pos(i, 5, 0));
+		put(b, "minecraft:barrel", new Pos(0, 4, 0), new Pos(1, 4, 0), new Pos(2, 4, 0));
+		assertTrue(found(BaseSignatures.evaluate(b, false, false, ALL, CFG)).contains(Signature.HOPPER_STORAGE));
+		assertFalse(found(BaseSignatures.evaluate(b, true, true, ALL, CFG)).contains(Signature.HOPPER_STORAGE));
+		Map<String, List<Pos>> farm = new HashMap<>();
+		for (int i = 0; i < 12; i++) put(farm, "minecraft:hopper", new Pos(i, 5, 0));
+		assertTrue(found(BaseSignatures.evaluate(farm, true, true, ALL, CFG)).contains(Signature.HOPPER_STORAGE)); // a real farm still shows
+	}
+
+	@Test
+	void nearABigStructureASpawnerNeedsMorePartsToBeAFarm() {
+		Map<String, List<Pos>> b = new HashMap<>();
+		put(b, "minecraft:spawner", new Pos(0, 10, 0));
+		put(b, "minecraft:hopper", new Pos(1, 6, 0), new Pos(2, 6, 0));
+		put(b, "minecraft:mossy_cobblestone", new Pos(1, 9, 1));
+		assertTrue(found(BaseSignatures.evaluate(b, false, false, ALL, CFG)).contains(Signature.SPAWNER_FARM));
+		assertFalse(found(BaseSignatures.evaluate(b, true, true, ALL, CFG)).contains(Signature.SPAWNER_FARM));
+	}
 }
