@@ -1,6 +1,7 @@
 package breezeclient.breezeclient.client.modules;
 
 import breezeclient.breezeclient.client.gui.Toasts;
+import breezeclient.breezeclient.client.session.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
@@ -50,10 +51,10 @@ public class AlertWebhook extends Module {
 			if (body.equals("Enabled") || body.equals("Disabled")) return; // module toggles are not finds
 			m.queue(title + ": " + body);
 		});
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> Guard.run("AlertWebhook disconnect", () -> {
 			AlertWebhook m = instance;
 			if (m != null && m.enabled() && m.disconnects.get()) m.sendNow("Disconnected from " + Session.serverKey());
-		});
+		}));
 	}
 
 	/** A safety event (KillSwitch, AutoLog); sent immediately because the connection is about to drop. */

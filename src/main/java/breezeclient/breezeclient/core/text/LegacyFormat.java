@@ -2,7 +2,6 @@ package breezeclient.breezeclient.core.text;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Parses Minecraft's classic "&amp;a" / "§a" formatting codes into styled text segments, so a custom name can be colored
@@ -77,14 +76,13 @@ public final class LegacyFormat {
 	 */
 	public static int indexOfName(String text, String name, int from) {
 		if (name == null || name.isEmpty()) return -1;
-		String lower = text.toLowerCase(Locale.ROOT), t = name.toLowerCase(Locale.ROOT);
-		int idx = lower.indexOf(t, Math.max(0, from));
-		while (idx >= 0) {
-			int end = idx + t.length();
+		// compared in place: lower-casing the whole text can change its length ("İ" becomes two chars) and shift every index
+		int n = name.length();
+		for (int idx = Math.max(0, from); idx + n <= text.length(); idx++) {
+			if (!text.regionMatches(true, idx, name, 0, n)) continue;
 			boolean leftOk = idx == 0 || !isNameChar(text.charAt(idx - 1));
-			boolean rightOk = end >= text.length() || !isNameChar(text.charAt(end));
+			boolean rightOk = idx + n >= text.length() || !isNameChar(text.charAt(idx + n));
 			if (leftOk && rightOk) return idx;
-			idx = lower.indexOf(t, idx + 1);
 		}
 		return -1;
 	}

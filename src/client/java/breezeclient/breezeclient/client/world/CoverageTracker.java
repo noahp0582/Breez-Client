@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.world;
 
+import breezeclient.breezeclient.client.session.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
@@ -33,7 +34,8 @@ public final class CoverageTracker {
 	private CoverageTracker() {}
 
 	public static void register() {
-		ClientChunkEvents.CHUNK_LOAD.register((level, chunk) -> current().add(chunk.getPos().toLong()));
+		// runs inside the chunk packet handler, so it must not throw (see Guard)
+		ClientChunkEvents.CHUNK_LOAD.register((level, chunk) -> Guard.run("Coverage load", () -> current().add(chunk.getPos().toLong())));
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			if (mc.level != null && ++sinceSave > SAVE_EVERY_TICKS) saveAll();
 		});

@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.world;
 
+import breezeclient.breezeclient.client.session.Guard;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
@@ -32,23 +33,36 @@ public final class ChunkScanner {
 	private static final Deque<Long> QUEUE = new ArrayDeque<>();
 	private static final List<Long> ROUND = new ArrayList<>();
 	private static int roundIdx;
+	/** The level the loaded set belongs to. A different level means a relog, a dimension change or a server switch. */
 	private static ClientLevel lastLevel;
+	/** False after a reset until the chunks the client already holds have been added back to the loaded set. */
+	private static boolean synced = true;
 
 	private ChunkScanner() {}
 
 	public static void register() {
-		ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
+		// these run inside the chunk packet handler, so they must not throw (see Guard)
+		ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> Guard.run("ChunkScanner load", () -> {
+			adopt(world); // the first chunk of a new level starts a fresh set; chunks that already arrived are not wiped later
 			long key = chunk.getPos().toLong();
 			LOADED.add(key);
 			QUEUE.addFirst(key);
-		});
-		ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> {
+		}));
+		ClientChunkEvents.CHUNK_UNLOAD.register((world, chunk) -> Guard.run("ChunkScanner unload", () -> {
+			if (world != lastLevel) return; // a discarded level unloading must not remove chunks of the new one
 			long key = chunk.getPos().toLong();
 			LOADED.remove(key);
 			QUEUE.remove(key);
 			for (ScanTarget t : TARGETS) t.hits.remove(key);
-		});
+		}));
 		ClientTickEvents.END_CLIENT_TICK.register(ChunkScanner::tick);
+	}
+
+	/** Makes {@code level} the one the loaded set describes, starting from an empty set when it is a different level. */
+	private static void adopt(ClientLevel level) {
+		if (level == lastLevel) return;
+		lastLevel = level;
+		reset();
 	}
 
 	public static void add(ScanTarget t) {
@@ -69,18 +83,23 @@ public final class ChunkScanner {
 	public static void reset() {
 		LOADED.clear();
 		QUEUE.clear();
+		ROUND.clear();
+		roundIdx = 0;
+		synced = false; // whatever the client already holds is added back on the next tick
 		for (ScanTarget t : TARGETS) t.hits.clear();
 	}
 
 	private static void tick(Minecraft mc) {
 		ClientLevel level = mc.level;
 		if (level == null) {
+			lastLevel = null;
 			if (!LOADED.isEmpty()) reset();
 			return;
 		}
-		if (level != lastLevel) { // dimension change swaps the level without unloading chunks one by one
-			lastLevel = level;
-			reset();
+		adopt(level); // dimension change swaps the level without unloading chunks one by one
+		if (!synced && mc.player != null) {
+			synced = true;
+			resync(mc, level);
 		}
 		if (TARGETS.isEmpty()) return;
 
@@ -111,6 +130,23 @@ public final class ChunkScanner {
 				scan(chunk, key);
 			} catch (RuntimeException e) {
 				LOG.log(Level.WARNING, "chunk scan failed", e);
+			}
+		}
+	}
+
+	/**
+	 * Adds every chunk the client already holds around the player. A chunk can finish loading before the scanner has seen
+	 * its level (it never fires a second load event), and without this it would stay unknown until it unloaded and loaded again.
+	 */
+	private static void resync(Minecraft mc, ClientLevel level) {
+		int radius = mc.options.getEffectiveRenderDistance() + 3; // the client chunk cache holds the render distance plus a margin
+		ChunkPos here = mc.player.chunkPosition();
+		for (int dx = -radius; dx <= radius; dx++) {
+			for (int dz = -radius; dz <= radius; dz++) {
+				int cx = here.x + dx, cz = here.z + dz;
+				if (level.getChunkSource().getChunk(cx, cz, false) == null) continue;
+				long key = ChunkPos.asLong(cx, cz);
+				if (LOADED.add(key)) QUEUE.addLast(key);
 			}
 		}
 	}

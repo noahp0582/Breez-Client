@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.render.RenderUtil;
 import breezeclient.breezeclient.client.world.BlockIds;
 import breezeclient.breezeclient.client.world.ChunkScanner;
 import breezeclient.breezeclient.client.world.ScanTarget;
@@ -14,6 +15,7 @@ import breezeclient.breezeclient.core.settings.NumberSetting;
 import breezeclient.breezeclient.core.settings.StringListSetting;
 import breezeclient.breezeclient.core.sus.BaseSignatures;
 import breezeclient.breezeclient.core.sus.BaseSignatures.Signature;
+import breezeclient.breezeclient.core.sus.SusColor;
 import breezeclient.breezeclient.core.sus.SusScore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -85,6 +87,8 @@ public class SusChunks extends Module {
 	private final NumberSetting range = add(new NumberSetting("Highlight range", 512, 32, 2048), "Display", "How far away highlights are drawn.");
 	private final NumberSetting maxHighlights = add(new NumberSetting("Max highlights", 12, 1, 100), "Display",
 		"Only the highest scoring chunks are drawn, so a busy area does not fill the screen.");
+	private final BoolSetting fillChunk = add(new BoolSetting("Fill chunk", true), "Display",
+		"Tint the whole flagged chunk. Chunks run from green (weakest find) to red (strongest) as their score rises.");
 	private final BoolSetting notify = add(new BoolSetting("Notify", true), "Alerts", "Pop-up the first time a chunk is flagged.");
 	private final BoolSetting waypoint = add(new BoolSetting("Waypoint", false), "Alerts", "Save a waypoint for each flagged chunk.");
 
@@ -95,6 +99,7 @@ public class SusChunks extends Module {
 	private final List<Result> results = new ArrayList<>();
 	private final Set<Long> announced = new HashSet<>();
 	private int ticks;
+	private ClientLevel seenLevel;
 
 	public SusChunks() {
 		super("SusChunks", Category.WORLD);
@@ -174,6 +179,12 @@ public class SusChunks extends Module {
 
 	@Override
 	protected void onTick() {
+		ClientLevel level = Minecraft.getInstance().level;
+		if (level != seenLevel) { // relog or dimension change: what was flagged belongs to the old world
+			seenLevel = level;
+			results.clear();
+			snapshots.clear();
+		}
 		if (target == null) return;
 		if (!applied.equals(indicators.get()) || appliedSignatures != (mode.get() == Mode.SIGNATURES)) {
 			rebuild();
@@ -398,17 +409,29 @@ public class SusChunks extends Module {
 		double base = appliedSignatures ? sigThreshold.get() : threshold.get();
 		List<Result> sorted = new ArrayList<>(results);
 		sorted.sort(Comparator.comparingDouble(Result::score).reversed());
-		int drawn = 0;
+		List<Result> shown = new ArrayList<>();
 		for (Result res : sorted) {
-			if (drawn >= maxHighlights.asInt()) break;
+			if (shown.size() >= maxHighlights.asInt()) break;
 			BlockPos c = res.center();
 			if (mc.player.distanceToSqr(c.getX(), c.getY(), c.getZ()) > r * r) continue;
-			drawn++;
-			double t = Math.min(1.0, (res.score() - base) / Math.max(1.0, base * 2));
-			int g = (int) (255 * (1.0 - t));
-			int color = 0xFF000000 | (255 << 16) | (g << 8);
+			shown.add(res);
+		}
+		if (shown.isEmpty()) return;
+		// green at the flagging threshold, red at the strongest chunk on screen; never less than three times the threshold,
+		// so a lone weak find is not painted red just because nothing else is around
+		double top = Math.max(base * 3, shown.get(0).score());
+		boolean fill = fillChunk.get() && f instanceof RenderUtil;
+		for (Result res : shown) {
+			BlockPos c = res.center();
+			int color = SusColor.gradient(SusColor.fraction(res.score(), base, top));
+			// the flagged chunk itself, as a column around what was found
+			double x0 = res.chunkX() * 16.0, z0 = res.chunkZ() * 16.0;
+			double y0 = res.min().getY() - 1, y1 = Math.max(res.max().getY() + 2, y0 + 8);
+			f.drawBox(x0, y0, z0, x0 + 16, y1, z0 + 16, color);
+			if (fill) ((RenderUtil) f).drawFilledBox(x0, y0, z0, x0 + 16, y1, z0 + 16, (color & 0xFFFFFF) | 0x30000000);
+			// and the exact spot inside it
 			f.drawBox(res.min().getX() - 1, res.min().getY() - 1, res.min().getZ() - 1, res.max().getX() + 2, res.max().getY() + 2, res.max().getZ() + 2, color);
-			f.drawText(c.getX() + 0.5, res.max().getY() + 3, c.getZ() + 0.5, String.format("%s  %.0f", res.label(), res.score()), color);
+			f.drawText(c.getX() + 0.5, y1 + 1, c.getZ() + 0.5, String.format("%s  %.0f", res.label(), res.score()), color);
 		}
 	}
 }

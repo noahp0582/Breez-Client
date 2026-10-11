@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.mixin;
 
+import breezeclient.breezeclient.client.session.Guard;
 import breezeclient.breezeclient.client.world.ChunkAgeTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -15,11 +16,11 @@ public abstract class ClientPacketListenerMixin {
 	/** Feeds fluid updates to the new-chunk detector. Handlers run once on the network thread and once on the client thread; only the latter counts. */
 	@Inject(method = "handleBlockUpdate", at = @At("HEAD"))
 	private void breez$blockUpdate(ClientboundBlockUpdatePacket packet, CallbackInfo ci) {
-		if (Minecraft.getInstance().isSameThread()) ChunkAgeTracker.onBlockUpdate(packet.getPos(), packet.getBlockState());
+		if (Minecraft.getInstance().isSameThread()) Guard.run("block update", () -> ChunkAgeTracker.onBlockUpdate(packet.getPos(), packet.getBlockState()));
 	}
 
 	@Inject(method = "handleChunkBlocksUpdate", at = @At("HEAD"))
 	private void breez$sectionUpdate(ClientboundSectionBlocksUpdatePacket packet, CallbackInfo ci) {
-		if (Minecraft.getInstance().isSameThread()) packet.runUpdates(ChunkAgeTracker::onBlockUpdate);
+		if (Minecraft.getInstance().isSameThread()) Guard.run("section update", () -> packet.runUpdates(ChunkAgeTracker::onBlockUpdate));
 	}
 }

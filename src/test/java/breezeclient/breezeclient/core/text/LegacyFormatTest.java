@@ -74,4 +74,13 @@ class LegacyFormatTest {
 		assertEquals(-1, LegacyFormat.indexOfName("xBobx 9Bob", "Bob", 0));
 		assertEquals(0, LegacyFormat.indexOfName("Bob", "Bob", 0));
 	}
+
+	/** Lower-casing "İ" yields two chars, which used to shift every index and throw inside a chat packet handler. */
+	@Test
+	void nameMatchingSurvivesCharactersThatChangeLengthWhenLowerCased() {
+		String text = "İİİİ Bob";
+		assertEquals(5, LegacyFormat.indexOfName(text, "Bob", 0));
+		assertEquals("İİİİ X", LegacyFormat.replaceName(text, "bob", "X"));
+		assertEquals(-1, LegacyFormat.indexOfName("İİİİ Bo", "Bob", 0));
+	}
 }

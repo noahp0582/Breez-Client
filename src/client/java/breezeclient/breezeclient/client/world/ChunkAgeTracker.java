@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.world;
 
+import breezeclient.breezeclient.client.session.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.core.world.ChunkAge;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
@@ -53,8 +54,9 @@ public final class ChunkAgeTracker {
 	private ChunkAgeTracker() {}
 
 	public static void register() {
-		ClientChunkEvents.CHUNK_LOAD.register((level, chunk) -> current().onLoad(chunk.getPos().toLong(), tick));
-		ClientChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> current().onUnload(chunk.getPos().toLong(), ChunkAgeTracker::hasLiquid));
+		// both run inside the chunk packet handler, so they must not throw (see Guard)
+		ClientChunkEvents.CHUNK_LOAD.register((level, chunk) -> Guard.run("ChunkAge load", () -> current().onLoad(chunk.getPos().toLong(), tick)));
+		ClientChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> Guard.run("ChunkAge unload", () -> current().onUnload(chunk.getPos().toLong(), ChunkAgeTracker::hasLiquid)));
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			if (mc.level == null) return;
 			tick++;

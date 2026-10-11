@@ -2,6 +2,7 @@ package breezeclient.breezeclient.client.modules;
 
 import breezeclient.breezeclient.client.safety.Reconnect;
 import breezeclient.breezeclient.client.safety.StaffTracker;
+import breezeclient.breezeclient.client.session.Guard;
 import breezeclient.breezeclient.client.session.Session;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
@@ -41,7 +42,9 @@ public class KillSwitch extends Module {
 
 	public static void registerEvents() {
 		ClientEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-			if (instance != null && instance.enabled() && entity instanceof Player) instance.check();
+			Guard.run("KillSwitch entity load", () -> {
+				if (instance != null && instance.enabled() && entity instanceof Player) instance.check();
+			});
 		});
 	}
 
@@ -60,10 +63,13 @@ public class KillSwitch extends Module {
 
 	private void trigger(StaffTracker.Hit hit) {
 		if (Minecraft.getInstance().getConnection() == null) return;
-		log(hit);
 		String why = "KillSwitch: " + hit.name() + " (" + hit.reason() + ")";
-		AlertWebhook.safety(why);
-		disconnect(why, reconnect.get());
+		try {
+			log(hit);
+			AlertWebhook.safety(why);
+		} finally {
+			disconnect(why, reconnect.get()); // a failing log or alert must never keep us connected
+		}
 	}
 
 	/** Drops the connection at once: stops automation, optionally blocks auto-reconnect, then disconnects. */

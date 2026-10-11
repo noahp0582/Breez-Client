@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.session.Guard;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.settings.BoolSetting;
@@ -131,11 +132,11 @@ public class ScoreboardName extends Module {
 	}
 
 	public static void registerEvents() {
-		net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
+		net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> Guard.call("ScoreboardName chat", message, () -> {
 			ScoreboardName m = on();
 			if (m == null || !m.chat.get() || m.mode.get() != Mode.REPLACE) return message;
 			return m.rewrite(message);
-		});
+		}));
 	}
 
 	/** Ticks never run inside a sidebar draw, so a flag left behind by an interrupted draw is cleared here. */

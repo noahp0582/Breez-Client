@@ -20,18 +20,21 @@ public final class Session {
 	public static String serverKey() { return serverKey; }
 
 	public static void register(ConfigManager config) {
-		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
+		// JOIN runs inside the login packet handler, so it must not throw (see Guard)
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> Guard.run("Session join", () -> {
 			ServerData d = mc.getCurrentServer();
 			serverKey = d == null || d.ip == null ? "singleplayer" : d.ip.trim().toLowerCase(Locale.ROOT);
 			Waypoints.setServer(serverKey);
 			if (d != null) config.setLastServer(serverKey);
 			ChunkScanner.reset();
-		});
-		// Fabric fires DISCONNECT on the network thread; module and scanner state belongs to the client thread.
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> mc.execute(() -> {
-			ChunkScanner.reset();
-			Modules.stopAutomation();
 		}));
+		// Fabric fires DISCONNECT on the network thread; module and scanner state belongs to the client thread.
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> mc.execute(() -> Guard.run("Session disconnect", () -> {
+			// a quick relog can have the new level (and its first chunks) in place before this task runs; the scanner
+			// notices a level change by itself, so only wipe it while there is no level
+			if (mc.level == null) ChunkScanner.reset();
+			Modules.stopAutomation();
+		})));
 	}
 
 	public static boolean inGame() {

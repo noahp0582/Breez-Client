@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.session.Guard;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.settings.StringSetting;
@@ -18,12 +19,12 @@ public class NameProtect extends Module {
 	}
 
 	public static void registerEvents() {
-		ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
+		ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> Guard.call("NameProtect chat", message, () -> {
 			if (instance == null || !instance.enabled()) return message;
 			var mc = Minecraft.getInstance();
 			if (mc.player == null) return message;
 			return NameReplace.replace(message, mc.player.getName().getString(),
 				style -> Component.literal(instance.alias.get()).withStyle(style));
-		});
+		}));
 	}
 }
