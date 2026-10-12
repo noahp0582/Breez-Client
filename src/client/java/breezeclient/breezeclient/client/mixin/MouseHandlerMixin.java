@@ -16,6 +16,12 @@ public abstract class MouseHandlerMixin {
 		CreamyKeys.onMouse(action, info.button());
 	}
 
+	/** Automated aiming moves the camera every frame, right after the real mouse has been applied. */
+	@Inject(method = "handleAccumulatedMovement", at = @At("TAIL"))
+	private void breez$frame(CallbackInfo ci) {
+		breezeclient.breezeclient.client.humanize.RotationController.frame();
+	}
+
 	@Inject(method = "onScroll", at = @At("HEAD"))
 	private void breez$scroll(long window, double xOffset, double yOffset, CallbackInfo ci) {
 		CreamyKeys.onScroll(yOffset);

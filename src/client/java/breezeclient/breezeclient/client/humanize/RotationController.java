@@ -1,29 +1,31 @@
 package breezeclient.breezeclient.client.humanize;
 
+import breezeclient.breezeclient.core.humanize.AimMotion;
 import breezeclient.breezeclient.core.humanize.Rotation;
 import breezeclient.breezeclient.core.humanize.Rotations;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Random;
 
-/** Applies eased, mouse-quantized camera movement toward a target every client tick. */
+/**
+ * Turns the camera toward a target for the modules that aim on their own. It moves every rendered frame (not twenty
+ * times a second), so the turn is as smooth on screen as a hand-moved mouse: see {@link AimMotion} for the shape.
+ */
 public final class RotationController {
-	private static final Random RNG = new Random();
+	private static final AimMotion MOTION = new AimMotion(new Random());
 	private static Rotation target;
 	private static float maxStep = 20f;
+	private static long lastFrame;
 
 	private RotationController() {}
 
-	public static void register() {
-		ClientTickEvents.START_CLIENT_TICK.register(RotationController::tick);
-	}
+	public static void register() {}
 
-	/** Start (or retarget) a smooth turn toward the given absolute yaw/pitch. */
+	/** Start (or retarget) a smooth turn toward the given absolute yaw/pitch. {@code maxStepDegrees} is the nominal speed in degrees per tick. */
 	public static void aimAt(Rotation t, float maxStepDegrees) {
-		target = t;
+		target = new Rotation(t.yaw(), Math.max(-90f, Math.min(90f, t.pitch())));
 		maxStep = maxStepDegrees;
 	}
 
@@ -41,7 +43,10 @@ public final class RotationController {
 		return new Rotation(yaw, pitch);
 	}
 
-	public static void clear() { target = null; }
+	public static void clear() {
+		target = null;
+		MOTION.reset();
+	}
 
 	public static boolean busy() { return target != null; }
 
@@ -50,16 +55,27 @@ public final class RotationController {
 		return p == null ? new Rotation(0, 0) : new Rotation(p.getYRot(), p.getXRot());
 	}
 
-	private static void tick(Minecraft mc) {
+	/** Called once per rendered frame, right after the game has applied the real mouse. */
+	public static void frame() {
+		long now = System.nanoTime();
+		double dt = lastFrame == 0 ? 0 : (now - lastFrame) / 1e9;
+		lastFrame = now;
+		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer p = mc.player;
-		if (p == null || target == null) return;
+		if (p == null || target == null) {
+			if (target == null && MOTION.active()) MOTION.reset();
+			return;
+		}
+		if (mc.isPaused()) return;
 		float q = Rotations.quantum(mc.options.sensitivity().get());
 		Rotation cur = new Rotation(p.getYRot(), p.getXRot());
-		Rotation next = Rotations.step(cur, target, (float) (maxStep * breezeclient.breezeclient.client.gui.GuiState.CLIENT.rotationSpeed.get()), q, RNG);
-		float dy = Math.abs(Rotations.wrapDegrees(target.yaw() - next.yaw()));
-		float dp = Math.abs(target.pitch() - next.pitch());
+		double degPerSec = maxStep * 20.0 * breezeclient.breezeclient.client.gui.GuiState.CLIENT.rotationSpeed.get();
+		Rotation next = MOTION.advance(cur, target, degPerSec, dt, q);
 		p.setYRot(next.yaw());
 		p.setXRot(next.pitch());
-		if (dy < q && dp < q) target = null;
+		if (AimMotion.arrived(next, target, q)) {
+			target = null;
+			MOTION.reset();
+		}
 	}
 }
