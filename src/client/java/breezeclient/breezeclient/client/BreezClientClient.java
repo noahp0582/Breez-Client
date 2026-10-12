@@ -3,7 +3,6 @@ package breezeclient.breezeclient.client;
 import breezeclient.breezeclient.client.chat.ChatCommands;
 import breezeclient.breezeclient.client.dev.SelfTest;
 import breezeclient.breezeclient.client.hud.HudRenderer;
-import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.input.KeyPoller;
 import breezeclient.breezeclient.client.macro.MacroStore;
 import breezeclient.breezeclient.client.modules.KillSwitch;
@@ -66,7 +65,6 @@ public class BreezClientClient implements ClientModInitializer {
 		KeyPoller.register(MODULES, config);
 		RenderHooks.register(MODULES);
 		HudRenderer.register(MODULES);
-		RotationController.register();
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			if (mc.player != null) MODULES.tick();
 		});

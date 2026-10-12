@@ -166,7 +166,6 @@ public final class BuildTest {
 		finished = true;
 		var b = Modules.builder;
 		for (String n : b.notes()) LOG.add("  skip: " + n);
-		for (String ev : b.events()) LOG.add("  event: " + ev);
 		LOG.add("builder status: " + b.status() + " after " + (ticks - startedAt) + " ticks, enabled=" + b.enabled());
 		BlockPos o = b.origin();
 		int bad = 0, total = 0;

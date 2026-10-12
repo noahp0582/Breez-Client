@@ -65,6 +65,15 @@ final class Placer {
 		return want.hasProperty(BlockStateProperties.SLAB_TYPE);
 	}
 
+	/**
+	 * True when the wanted state fixes which half of the cell the block fills (a top or bottom slab, an upright or
+	 * upside-down stair or trapdoor). Getting that wrong is a differently shaped block, not one that can be turned later.
+	 */
+	static boolean halfMatters(BlockState want) {
+		return want.hasProperty(BlockStateProperties.HALF)
+			|| (want.hasProperty(BlockStateProperties.SLAB_TYPE) && want.getValue(BlockStateProperties.SLAB_TYPE) != SlabType.DOUBLE);
+	}
+
 	/** A single slab that the schematic wants doubled: the second half is placed by clicking the slab itself. */
 	static boolean halfOfDouble(BlockState cur, BlockState want) {
 		return cur.getBlock() == want.getBlock() && want.hasProperty(BlockStateProperties.SLAB_TYPE) && want.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.DOUBLE

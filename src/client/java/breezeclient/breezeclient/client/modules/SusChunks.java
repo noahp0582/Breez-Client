@@ -15,6 +15,7 @@ import breezeclient.breezeclient.core.settings.NumberSetting;
 import breezeclient.breezeclient.core.settings.StringListSetting;
 import breezeclient.breezeclient.core.sus.BaseSignatures;
 import breezeclient.breezeclient.core.sus.BaseSignatures.Signature;
+import breezeclient.breezeclient.core.sus.GriefSignatures;
 import breezeclient.breezeclient.core.sus.SusColor;
 import breezeclient.breezeclient.core.sus.SusScore;
 import net.minecraft.client.Minecraft;
@@ -132,26 +133,18 @@ public class SusChunks extends Module {
 		return copy.subList(0, Math.min(n, copy.size()));
 	}
 
-	/** What the last pass knew about one chunk: its scanned blocks and which chunks around it look natural (for the self-test). */
-	public static String describe(int cx, int cz) {
-		if (instance == null) return "off";
-		StringBuilder sb = new StringBuilder();
-		Snapshot s = instance.snapshots.get(ChunkPos.asLong(cx, cz));
-		if (s == null) return "no scanned blocks in " + cx + "," + cz + " (" + instance.snapshots.size() + " chunks known)";
-		for (var e : s.byId().entrySet()) sb.append(e.getKey().replace("minecraft:", "")).append("x").append(e.getValue().size()).append(' ');
-		sb.append("| natural around:");
-		for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
-			Snapshot n = instance.snapshots.get(ChunkPos.asLong(cx + dx, cz + dz));
-			if (n != null && n.natural()) sb.append(" ").append(dx).append(",").append(dz).append(n.big() ? "(big)" : "");
-		}
-		return sb.toString();
-	}
-
 	public static void resetAnnounced() {
 		if (instance != null) instance.announced.clear();
 	}
 
 	private boolean appliedSignatures;
+	private boolean appliedGrief;
+	private Object appliedDim;
+
+	private boolean griefWanted() {
+		Set<Signature> on = activeSignatures();
+		return on.contains(Signature.GRIEFED) || on.contains(Signature.LAVACAST);
+	}
 
 	private void rebuild() {
 		applied = List.copyOf(indicators.get());
@@ -162,9 +155,18 @@ public class SusChunks extends Module {
 				Block b = BlockIds.parse(id);
 				if (b != null) blocks.add(b);
 			}
-			for (String id : breezeclient.breezeclient.core.sus.GriefSignatures.scanIds()) {
-				Block b = BlockIds.parse(id);
-				if (b != null) blocks.add(b);
+			// The grief blocks are common in places where they mean nothing: only scan them when those signatures are on, and
+			// leave out End obsidian (the pillars are thousands of blocks a chunk) and Nether fire (it burns everywhere).
+			var dim = seenLevel == null ? null : seenLevel.dimension();
+			appliedGrief = griefWanted();
+			appliedDim = dim;
+			if (appliedGrief) {
+				for (String id : GriefSignatures.scanIds()) {
+					if (dim == net.minecraft.world.level.Level.END && (id.equals(GriefSignatures.OBSIDIAN) || id.equals(GriefSignatures.COBBLESTONE))) continue;
+					if (dim == net.minecraft.world.level.Level.NETHER && GriefSignatures.FIRE.contains(id)) continue;
+					Block b = BlockIds.parse(id);
+					if (b != null) blocks.add(b);
+				}
 			}
 		} else {
 			weights = SusScore.parseWeights(applied);
@@ -207,7 +209,8 @@ public class SusChunks extends Module {
 			snapshots.clear();
 		}
 		if (target == null) return;
-		if (!applied.equals(indicators.get()) || appliedSignatures != (mode.get() == Mode.SIGNATURES)) {
+		if (!applied.equals(indicators.get()) || appliedSignatures != (mode.get() == Mode.SIGNATURES)
+			|| (appliedSignatures && (appliedGrief != griefWanted() || appliedDim != (level == null ? null : level.dimension())))) {
 			rebuild();
 			results.clear();
 		}
@@ -385,7 +388,7 @@ public class SusChunks extends Module {
 				}
 				findings.addAll(BaseSignatures.evaluateEntities(merged, nearNatural, cx, cz));
 			}
-			findings.addAll(breezeclient.breezeclient.core.sus.GriefSignatures.evaluate(own, nearNatural, level.dimension() == net.minecraft.world.level.Level.NETHER, enabled, level.getSeaLevel()));
+			findings.addAll(GriefSignatures.evaluate(own, nearNatural, level.dimension() == net.minecraft.world.level.Level.NETHER, enabled, level.getSeaLevel()));
 			if (enabled.contains(Signature.TUNNEL) && !nearNatural) {
 				List<TunnelFinder.Run> runs = TunnelFinder.runsIn(cx, cz);
 				if (!runs.isEmpty()) {

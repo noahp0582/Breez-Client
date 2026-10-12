@@ -28,6 +28,9 @@ public final class WorkNavigator {
 		boolean worksFrom(Pos feet, Vec3 eye);
 	}
 
+	/** Most cells one search may ask the caller about; the nearest ones come first, so a spot that exists is found well before this. */
+	private static final int MAX_SPOT_CHECKS = 160;
+
 	public enum State { IDLE, WALKING, ARRIVED, FAILED }
 
 	public enum Start { OK, NO_ROUTE, NOT_READY }
@@ -36,10 +39,6 @@ public final class WorkNavigator {
 	private final List<BlockPos> scaffold = new ArrayList<>();
 	private State state = State.IDLE;
 	private boolean partial;
-	private String note = "";
-
-	/** What the last search saw, for a module's status line. */
-	public String note() { return note; }
 
 	public State state() { return state; }
 
@@ -61,7 +60,8 @@ public final class WorkNavigator {
 		private final net.minecraft.client.multiplayer.ClientLevel level;
 		private final Pos start;
 		private final Vec3 startEye;
-		int nearCells;
+		/** Cells the caller has been asked about. Each ask can cost hundreds of raycasts, so one search only gets so many. */
+		private int asked;
 
 		WorkGoal(List<BlockPos> targets, double reach, double eyeHeight, Spot spot, net.minecraft.client.multiplayer.ClientLevel level, Pos start, Vec3 startEye) {
 			this.level = level;
@@ -91,8 +91,7 @@ public final class WorkNavigator {
 					break;
 				}
 			}
-			if (near) nearCells++;
-			boolean ok = near && spot.worksFrom(p, new Vec3(ex, ey, ez));
+			boolean ok = near && asked++ < MAX_SPOT_CHECKS && spot.worksFrom(p, new Vec3(ex, ey, ez));
 			seen.put(p, ok);
 			return ok;
 		}
@@ -172,13 +171,14 @@ public final class WorkNavigator {
 			partial = false;
 			return Start.OK;
 		}
-		note = goal.seen.size() + " cells looked at, " + goal.nearCells + " near a target, reached " + r.reachedGoal() + ", steps " + r.steps().size();
 		if (r.steps().isEmpty()) return fail(Start.NO_ROUTE);
 		partial = !r.reachedGoal();
 		Pos prev = here;
 		for (Step s : r.steps()) {
-			if (s.move() == Move.PILLAR) scaffold.add(new BlockPos(prev.x(), prev.y(), prev.z()));
-			else if (s.move() == Move.BRIDGE) scaffold.add(new BlockPos(s.pos().x(), s.pos().y() - 1, s.pos().z()));
+			BlockPos spare = s.move() == Move.PILLAR ? new BlockPos(prev.x(), prev.y(), prev.z())
+				: s.move() == Move.BRIDGE ? new BlockPos(s.pos().x(), s.pos().y() - 1, s.pos().z()) : null;
+			// only a cell that is empty now can later hold a block of ours
+			if (spare != null && mc.level.getBlockState(spare).isAir()) scaffold.add(spare);
 			prev = s.pos();
 		}
 		exec.start(r.steps(), here);

@@ -79,6 +79,8 @@ public class AutoDig extends Module {
 	private final Map<Long, String> skipped = new HashMap<>();
 	/** No way found to a spot that sees these: tried again once something else has been dug. */
 	private final Set<Long> hidden = new HashSet<>();
+	/** How often in a row the crosshair failed to reach a block. */
+	private final Map<Long, Integer> aimFails = new HashMap<>();
 	private DigArea area;
 	private State state = State.SCAN;
 	private BlockPos target;
@@ -154,6 +156,7 @@ public class AutoDig extends Module {
 		}
 		skipped.clear();
 		hidden.clear();
+		aimFails.clear();
 		broken = hiddenRounds = navFails = idleArrivals = notReady = wait = 0;
 		lastResult = "";
 		layer = area.maxY();
@@ -212,7 +215,11 @@ public class AutoDig extends Module {
 
 	/** True when digging this block would drop the player more than three blocks. */
 	private boolean opensDrop(Minecraft mc, LocalPlayer p, BlockPos pos) {
-		if (!pos.equals(p.blockPosition().below())) return false;
+		return pos.equals(p.blockPosition().below()) && dropBelow(mc, pos);
+	}
+
+	/** True when there is nothing to land on within three blocks under this block. */
+	private boolean dropBelow(Minecraft mc, BlockPos pos) {
 		for (int i = 1; i <= 3; i++) {
 			BlockState below = mc.level.getBlockState(pos.below(i));
 			if (LevelWorld.hazard(below)) return true;
@@ -371,6 +378,8 @@ public class AutoDig extends Module {
 		WorkNavigator.Start s = nav.start(mc, frontier, r, p.getEyeHeight(), (feet, eye) -> {
 			for (BlockPos t : frontier) {
 				if (eye.distanceToSqr(Vec3.atCenterOf(t)) > (r + 0.9) * (r + 0.9)) continue;
+				// standing on it is the one place it must not be dug from: look for a spot beside it
+				if (avoidDrops.get() && t.getX() == feet.x() && t.getZ() == feet.z() && t.getY() == feet.y() - 1 && dropBelow(mc, t)) continue;
 				if (Placer.visiblePoint(mc, p, t, eye, r) != null) return true;
 			}
 			return false;
@@ -443,6 +452,7 @@ public class AutoDig extends Module {
 		}
 		if (!diggable(mc, target)) { // gone: we dug it, or a 3x3 hit took it
 			if (digging) broken++;
+			aimFails.remove(target.asLong());
 			hidden.clear(); // the view changed: blocks there was no way to get another try
 			hiddenRounds = 0;
 			stopDig(mc);
@@ -468,6 +478,8 @@ public class AutoDig extends Module {
 		if (!(mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK && bh.getBlockPos().equals(target))) {
 			stopDig(mc);
 			if (++lookTicks > 45) { // lost sight of it: look at everything again
+				// three times in a row on the same block means the crosshair will never land on it (a mob in the way, a sliver of a view)
+				if (aimFails.merge(target.asLong(), 1, Integer::sum) >= 3) skipped.put(target.asLong(), "could not get the crosshair on it");
 				target = null;
 				state = State.SCAN;
 				return;

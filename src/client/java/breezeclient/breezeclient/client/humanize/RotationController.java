@@ -21,8 +21,6 @@ public final class RotationController {
 
 	private RotationController() {}
 
-	public static void register() {}
-
 	/** Start (or retarget) a smooth turn toward the given absolute yaw/pitch. {@code maxStepDegrees} is the nominal speed in degrees per tick. */
 	public static void aimAt(Rotation t, float maxStepDegrees) {
 		target = new Rotation(t.yaw(), Math.max(-90f, Math.min(90f, t.pitch())));

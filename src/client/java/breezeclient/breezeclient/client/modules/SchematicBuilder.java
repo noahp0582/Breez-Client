@@ -159,19 +159,8 @@ public class SchematicBuilder extends Module {
 	private int idleArrivals;
 	private int notReady;
 	private int stage;
-	/** How the last attempt to get somewhere ended, for .build status. */
-	private String navNote = "";
-	/** What it did lately, newest last (for .build status and the self-test). */
-	private final java.util.ArrayDeque<String> events = new java.util.ArrayDeque<>();
-	private int age;
-
-	private void event(String what) {
-		if (events.size() >= 80) events.removeFirst();
-		events.addLast(age + " " + what);
-	}
-
-	public List<String> events() { return new ArrayList<>(events); }
-	private String lastNav = "";
+	/** Walks toward blocks in chunks that are not loaded yet; counted so an unreachable one cannot be chased forever. */
+	private int farTries;
 
 	private double spentTotal;
 	private boolean buyBroken;
@@ -348,7 +337,7 @@ public class SchematicBuilder extends Module {
 	public String status() {
 		if (loaded == null) return "No schematic loaded. Put files next to the mod jar and use .build auto [file] (searched: " + searched() + ").";
 		return String.format("%s: %d/%d placed, %d to go, state %s%s%s", file.get(), done, total, pending.size(), state.name().toLowerCase(Locale.ROOT),
-			givenUp.isEmpty() ? "" : ", " + leftOut() + (lastNav.isEmpty() ? "" : " [" + lastNav + "]"), wrongWay > 0 ? ", " + wrongWay + " may need turning" : "");
+			givenUp.isEmpty() ? "" : ", " + leftOut(), wrongWay > 0 ? ", " + wrongWay + " may need turning" : "");
 	}
 
 	/** "4 left out (3 nowhere to stand to place it, 1 cannot dig Chest)". */
@@ -408,7 +397,7 @@ public class SchematicBuilder extends Module {
 		tries.clear();
 		clear.clear();
 		cleaning = anyLayer = false;
-		navNote = lastNav = "";
+		farTries = 0;
 		rechecks = 0;
 		givenUpItems.clear();
 		done = wrongWay = 0;
@@ -447,6 +436,7 @@ public class SchematicBuilder extends Module {
 
 	private void markDone(long key) {
 		if (pending.remove(key)) done++;
+		farTries = 0;
 		anyLayer = false; // progress: back to working bottom-up
 		stuck.remove(key);
 		tries.remove(key);
@@ -494,7 +484,7 @@ public class SchematicBuilder extends Module {
 		for (long key : pending) {
 			if (stuck.contains(key) || BlockPos.getY(key) > top || givenUpItems.contains(plan.get(key).getBlock().asItem())) continue;
 			if (rank(plan.get(key)) == 0) faceFirst = true;
-			if (!onRim(BlockPos.getX(key), BlockPos.getZ(key))) innerFirst = true;
+			if (!innerFirst && !onRim(BlockPos.getX(key), BlockPos.getZ(key)) && standsNow(key)) innerFirst = true;
 			if (faceFirst && innerFirst) break;
 		}
 		return top;
@@ -502,6 +492,12 @@ public class SchematicBuilder extends Module {
 
 	/** The order inside the working layers: face-critical blocks, then everything inside the footprint, then its rim. Digging any time. */
 	private boolean onRim(int x, int z) { return x == box[0] || x == box[2] || z == box[1] || z == box[3]; }
+
+	/** False for a block that hangs off something not built yet (a torch waiting for its wall): it must not hold the rim back. */
+	private boolean standsNow(long key) {
+		var level = Minecraft.getInstance().level;
+		return level == null || plan.get(key).canSurvive(level, BlockPos.of(key));
+	}
 
 	private boolean allowedNow(Job j) {
 		if (cleaning || anyLayer || j.kind() == Kind.DIG) return true;
@@ -679,7 +675,6 @@ public class SchematicBuilder extends Module {
 			return;
 		}
 		if (p.containerMenu != p.inventoryMenu) p.closeContainer(); // a click opened a chest/crafting table: never stay inside it
-		age++;
 		nav.tick();
 		// sneak so clicks do not use containers or doors; while walking the pathing decides
 		if (state == State.AIM || state == State.PLACE || state == State.VERIFY || state == State.CENTER) Keys.press(mc.options.keyShift);
@@ -790,8 +785,10 @@ public class SchematicBuilder extends Module {
 		if (scaffold.get() && !cleaning) spareBlock(mc, p);
 		double r = reach.get();
 		WorkNavigator.Start s = nav.start(mc, frontier, r, p.getEyeHeight(Pose.CROUCHING), (feet, eye) -> {
+			int tried = 0;
 			for (BlockPos t : frontier) {
 				if (eye.distanceToSqr(Vec3.atCenterOf(t)) > (r + 0.9) * (r + 0.9)) continue;
+				if (++tried > 10) break; // the frontier is nearest-first: ten in reach is plenty to tell whether this cell is any use
 				Kind k = frontierKind.get(t.asLong());
 				BlockState want = plan.get(t.asLong());
 				if (k == null) continue;
@@ -800,7 +797,6 @@ public class SchematicBuilder extends Module {
 			}
 			return false;
 		}, scaffold.get() && !cleaning, plan::containsKey);
-		event("nav " + s + " for " + frontier.size() + " (" + nav.note() + ") partial " + nav.partial() + " scaffold " + nav.scaffold().size() + " from " + WorkNavigator.feet(p));
 		switch (s) {
 			case OK -> {
 				notReady = 0;
@@ -809,14 +805,12 @@ public class SchematicBuilder extends Module {
 			}
 			case NOT_READY -> {
 				timer = 5;
-				navNote = "search could not start at " + WorkNavigator.feet(p) + " onGround " + p.onGround();
 				if (++notReady > 20) { // cannot even start a search from here: nothing more to be done for these
 					notReady = 0;
 					for (BlockPos t : frontier) stuck.add(t.asLong());
 				}
 			}
 			case NO_ROUTE -> {
-				navNote = "no route to any of the " + frontier.size() + " nearest blocks (" + nav.note() + ")";
 				for (BlockPos t : frontier) stuck.add(t.asLong()); // the next scan looks at the ones after these
 				timer = 1;
 			}
@@ -838,7 +832,10 @@ public class SchematicBuilder extends Module {
 
 	private void collectScaffold(Minecraft mc) {
 		for (BlockPos b : nav.scaffold()) {
-			if (!plan.containsKey(b.asLong()) && !mc.level.getBlockState(b).isAir()) clear.add(b.asLong());
+			var navModule = breezeclient.breezeclient.client.nav.NavModule.instance;
+			String id = BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(b).getBlock()).toString();
+			// the cell was empty when the route was planned; it is ours only if it now holds one of the blocks the pathing places
+			if (!plan.containsKey(b.asLong()) && navModule != null && navModule.placeable.contains(id)) clear.add(b.asLong());
 		}
 		nav.scaffold().clear();
 	}
@@ -858,10 +855,8 @@ public class SchematicBuilder extends Module {
 			}
 			case ARRIVED -> {
 				collectScaffold(mc);
-				event("arrived at " + WorkNavigator.feet(p));
 				RotationController.clear();
 				// arriving and still finding nothing to do means the spot was not as good as it looked: do not come back forever
-				navNote = "arrived at " + WorkNavigator.feet(p) + " and found nothing to do";
 				if (++idleArrivals >= (nav.partial() ? 6 : 3)) { // a route that only led toward the work gets a few more goes
 					for (BlockPos t : frontier) stuck.add(t.asLong());
 					idleArrivals = 0;
@@ -870,8 +865,6 @@ public class SchematicBuilder extends Module {
 				rescan(limiter.between(2, 5));
 			}
 			default -> {
-				navNote = "walk failed: " + nav.failReason();
-				event(navNote + " at " + WorkNavigator.feet(p));
 				collectScaffold(mc);
 				if (++navFails >= 3) {
 					for (BlockPos t : frontier) stuck.add(t.asLong());
@@ -883,15 +876,45 @@ public class SchematicBuilder extends Module {
 		}
 	}
 
+	/**
+	 * Heads for the nearest wanted block whose chunk the client does not have, so the chunk loads and the block can be
+	 * worked on. The search cannot reach into unloaded chunks, so the route only leads toward it; that is enough.
+	 */
+	private boolean walkToUnloaded(Minecraft mc, LocalPlayer p) {
+		if (farTries >= 12) return false;
+		BlockPos far = null;
+		double best = Double.MAX_VALUE;
+		for (long key : pending) {
+			int x = BlockPos.getX(key), z = BlockPos.getZ(key);
+			if (mc.level.getChunkSource().hasChunk(x >> 4, z >> 4)) continue;
+			double d = p.distanceToSqr(x + 0.5, BlockPos.getY(key), z + 0.5);
+			if (d < best) {
+				best = d;
+				far = BlockPos.of(key);
+			}
+		}
+		if (far == null) return false;
+		farTries++;
+		frontier = List.of();
+		WorkNavigator.Start s = nav.start(mc, List.of(far), reach.get(), p.getEyeHeight(Pose.CROUCHING), (feet, eye) -> true, false, key -> true);
+		if (s == WorkNavigator.Start.NOT_READY) {
+			timer = 5;
+			return true;
+		}
+		if (s != WorkNavigator.Start.OK || nav.state() != WorkNavigator.State.WALKING) return false;
+		navTicks = 0;
+		state = State.NAV;
+		return true;
+	}
+
 	/** Nothing left that it can get to: wait for items, loosen up, take the scaffolding down, or finish. */
 	private void conclude(Minecraft mc, LocalPlayer p, Item lacking) {
-		event("conclude: pending " + pending.size() + " stuck " + stuck.size() + " relaxed " + relaxed.size() + " clear " + clear.size() + " cleaning " + cleaning);
 		if (!stuck.isEmpty()) {
 			boolean loosened = false;
 			if (!strict.get()) {
 				for (long key : stuck) {
 					BlockState want = plan.get(key);
-					if (want != null && Placer.hasOrientation(want) && relaxed.add(key)) loosened = true;
+					if (want != null && Placer.hasOrientation(want) && !Placer.halfMatters(want) && relaxed.add(key)) loosened = true;
 				}
 			}
 			if (loosened) { // one more round, this time accepting a placement that may face the wrong way
@@ -900,7 +923,6 @@ public class SchematicBuilder extends Module {
 			}
 			for (long key : new ArrayList<>(stuck)) {
 				if (plan.containsKey(key)) giveUp(key, "nowhere to stand to place it");
-				if (lastNav.isEmpty()) lastNav = navNote;
 				else clear.remove(key);
 			}
 			stuck.clear();
@@ -912,6 +934,7 @@ public class SchematicBuilder extends Module {
 			state = State.NEED_ITEMS;
 			return;
 		}
+		if (!pending.isEmpty() && walkToUnloaded(mc, p)) return;
 		if (!pending.isEmpty()) { // still wanted, but nothing can be done about them any more
 			for (long key : new ArrayList<>(pending)) {
 				BlockPos pos = BlockPos.of(key);

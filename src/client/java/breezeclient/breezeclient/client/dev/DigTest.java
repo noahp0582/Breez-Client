@@ -44,10 +44,20 @@ public final class DigTest {
 		ticks++;
 		mc.options.pauseOnLostFocus = false;
 		if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) mc.setScreen(null);
+		if (mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen) { // an earlier survival test can leave the player dead
+			mc.player.respawn();
+			mc.setScreen(null);
+			if (startedAt < 0) ticks = 0; // set the scene again from the top once we are back
+			return;
+		}
 		try {
 			if (ticks == 10) {
 				cmd(mc, "gamemode survival @a");
 				cmd(mc, "clear @a");
+				cmd(mc, "effect give @a minecraft:instant_health 1 10 true");
+				cmd(mc, "effect give @a minecraft:saturation 10 20 true");
+				cmd(mc, "effect give @a minecraft:resistance 600 4 true"); // night in the test world: a zombie must not end the run
+				cmd(mc, "time set day");
 				cmd(mc, "fill -14 140 -14 14 149 14 minecraft:stone");
 				cmd(mc, "fill -14 150 -14 14 160 14 minecraft:air");
 				cmd(mc, "setblock " + CHEST.getX() + " " + CHEST.getY() + " " + CHEST.getZ() + " minecraft:chest");

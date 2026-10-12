@@ -393,7 +393,7 @@ public final class ModuleBatchTest {
 				sus.append('[').append(r.chunkX()).append(',').append(r.chunkZ()).append(' ').append(r.label()).append("] ");
 				if (r.chunkX() == 12 && r.chunkZ() == 12) for (String f : r.all()) griefed |= f.contains("Griefed");
 			}
-			check("SusChunks flags the stripped base with TNT as griefed", griefed, sus + " || " + breezeclient.breezeclient.client.modules.SusChunks.describe(12, 12));
+			check("SusChunks flags the stripped base with TNT as griefed", griefed, sus.toString());
 			off("SusChunks");
 		});
 
