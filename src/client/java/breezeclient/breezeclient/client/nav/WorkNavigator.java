@@ -165,7 +165,7 @@ public final class WorkNavigator {
 		Pathfinder.Options opts = new Pathfinder.Options(false, place, nav == null || nav.allowParkour.get(), nav == null ? 3 : Math.min(3, nav.maxFall.asInt()), 1.0, 6.0);
 		Pos here = feet(p);
 		WorkGoal goal = new WorkGoal(targets, reach, eyeHeight, spot, mc.level, here, p.position().add(0, eyeHeight, 0));
-		Pathfinder.Result r = Pathfinder.search(new WorkWorld(new LevelWorld(mc.level, place), noPlace), here, goal, opts, 5000);
+		Pathfinder.Result r = Pathfinder.search(LevelWorld.fromCrouch(new WorkWorld(new LevelWorld(mc.level, place), noPlace), mc.level, here.x(), here.y(), here.z()), here, goal, opts, 5000);
 		if (r == null) return Start.NOT_READY; // standing somewhere the search cannot start from (mid-step, on a slab edge)
 		if (r.reachedGoal() && r.steps().isEmpty()) { // already there
 			state = State.ARRIVED;

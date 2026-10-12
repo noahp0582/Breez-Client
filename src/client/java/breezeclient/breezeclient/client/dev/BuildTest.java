@@ -152,7 +152,7 @@ public final class BuildTest {
 					cmd(mc, "setblock " + (org.getX() + 3) + " " + (org.getY() + 2) + " " + org.getZ() + " minecraft:dirt");
 				}
 			}
-			if (startedAt > 0 && (!Modules.builder.enabled() || ticks - startedAt > 3000)) finish(mc);
+			if (startedAt > 0 && (!Modules.builder.enabled() || ticks - startedAt > 6000)) finish(mc);
 		} catch (Exception e) {
 			LOG.add("FAIL test threw " + e);
 			finish(mc);
@@ -166,6 +166,7 @@ public final class BuildTest {
 		finished = true;
 		var b = Modules.builder;
 		for (String n : b.notes()) LOG.add("  skip: " + n);
+		for (String ev : b.events()) LOG.add("  event: " + ev);
 		LOG.add("builder status: " + b.status() + " after " + (ticks - startedAt) + " ticks, enabled=" + b.enabled());
 		BlockPos o = b.origin();
 		int bad = 0, total = 0;

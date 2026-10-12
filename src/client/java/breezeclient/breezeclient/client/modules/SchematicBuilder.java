@@ -161,6 +161,16 @@ public class SchematicBuilder extends Module {
 	private int stage;
 	/** How the last attempt to get somewhere ended, for .build status. */
 	private String navNote = "";
+	/** What it did lately, newest last (for .build status and the self-test). */
+	private final java.util.ArrayDeque<String> events = new java.util.ArrayDeque<>();
+	private int age;
+
+	private void event(String what) {
+		if (events.size() >= 80) events.removeFirst();
+		events.addLast(age + " " + what);
+	}
+
+	public List<String> events() { return new ArrayList<>(events); }
 	private String lastNav = "";
 
 	private double spentTotal;
@@ -601,7 +611,7 @@ public class SchematicBuilder extends Module {
 		};
 		// a block in the column we stand in leaves no room for the body: that is shut in, whatever the search says
 		if (filled != null && filled.getX() == from.x() && filled.getZ() == from.z() && (filled.getY() == from.y() || filled.getY() == from.y() + 1)) return false;
-		Pathfinder.Result r = Pathfinder.search(w, from, clear, Pathfinder.Options.walking(3), 4000);
+		Pathfinder.Result r = Pathfinder.search(LevelWorld.fromCrouch(w, mc.level, from.x(), from.y(), from.z()), from, clear, Pathfinder.Options.walking(3), 4000);
 		return r == null || r.reachedGoal() || r.outOfBudget(); // only a search that saw every reachable cell says "shut in"
 	}
 
@@ -669,6 +679,7 @@ public class SchematicBuilder extends Module {
 			return;
 		}
 		if (p.containerMenu != p.inventoryMenu) p.closeContainer(); // a click opened a chest/crafting table: never stay inside it
+		age++;
 		nav.tick();
 		// sneak so clicks do not use containers or doors; while walking the pathing decides
 		if (state == State.AIM || state == State.PLACE || state == State.VERIFY || state == State.CENTER) Keys.press(mc.options.keyShift);
@@ -789,6 +800,7 @@ public class SchematicBuilder extends Module {
 			}
 			return false;
 		}, scaffold.get() && !cleaning, plan::containsKey);
+		event("nav " + s + " for " + frontier.size() + " (" + nav.note() + ") partial " + nav.partial() + " scaffold " + nav.scaffold().size() + " from " + WorkNavigator.feet(p));
 		switch (s) {
 			case OK -> {
 				notReady = 0;
@@ -846,6 +858,7 @@ public class SchematicBuilder extends Module {
 			}
 			case ARRIVED -> {
 				collectScaffold(mc);
+				event("arrived at " + WorkNavigator.feet(p));
 				RotationController.clear();
 				// arriving and still finding nothing to do means the spot was not as good as it looked: do not come back forever
 				navNote = "arrived at " + WorkNavigator.feet(p) + " and found nothing to do";
@@ -858,6 +871,7 @@ public class SchematicBuilder extends Module {
 			}
 			default -> {
 				navNote = "walk failed: " + nav.failReason();
+				event(navNote + " at " + WorkNavigator.feet(p));
 				collectScaffold(mc);
 				if (++navFails >= 3) {
 					for (BlockPos t : frontier) stuck.add(t.asLong());
@@ -871,6 +885,7 @@ public class SchematicBuilder extends Module {
 
 	/** Nothing left that it can get to: wait for items, loosen up, take the scaffolding down, or finish. */
 	private void conclude(Minecraft mc, LocalPlayer p, Item lacking) {
+		event("conclude: pending " + pending.size() + " stuck " + stuck.size() + " relaxed " + relaxed.size() + " clear " + clear.size() + " cleaning " + cleaning);
 		if (!stuck.isEmpty()) {
 			boolean loosened = false;
 			if (!strict.get()) {

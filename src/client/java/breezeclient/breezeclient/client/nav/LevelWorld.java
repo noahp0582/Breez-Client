@@ -38,6 +38,29 @@ public final class LevelWorld implements Pathfinder.World {
 			|| s.is(Blocks.SOUL_CAMPFIRE) || s.is(Blocks.POINTED_DRIPSTONE);
 	}
 
+	/**
+	 * Wraps a world so that a search can start where the player is crouched under a low ceiling (a top slab over the head):
+	 * the pathfinder wants full standing room everywhere, but a player who is already under there can walk out.
+	 */
+	public static Pathfinder.World fromCrouch(Pathfinder.World w, ClientLevel level, int sx, int sy, int sz) {
+		BlockPos head = new BlockPos(sx, sy + 1, sz);
+		VoxelShape shape = level.getBlockState(head).getCollisionShape(level, head);
+		if (shape.isEmpty() || shape.min(Direction.Axis.Y) < 0.5) return w; // free, or too low even to crouch
+		return new Pathfinder.World() {
+			@Override
+			public boolean passable(int x, int y, int z) { return (x == sx && y == sy + 1 && z == sz) || w.passable(x, y, z); }
+
+			@Override
+			public boolean ground(int x, int y, int z) { return w.ground(x, y, z); }
+
+			@Override
+			public double breakCost(int x, int y, int z) { return w.breakCost(x, y, z); }
+
+			@Override
+			public boolean placeable(int x, int y, int z) { return w.placeable(x, y, z); }
+		};
+	}
+
 	@Override
 	public boolean passable(int x, int y, int z) {
 		if (!loaded(x, z)) return false;
