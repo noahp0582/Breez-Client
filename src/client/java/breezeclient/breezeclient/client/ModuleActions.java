@@ -61,7 +61,11 @@ public final class ModuleActions {
 		if ((m = mm.get("SchematicBuilder")) != null) {
 			final Module mod = m;
 			StringSetting file = find(m, "File");
-			act(m, "List schematic files", "Shows the files in the schematics folder. Same as .build files.", "build files");
+			m.addAction("Load and build at my crosshair", "Loads the File named below (or the newest schematic next to the mod jar), puts its corner on the block face you look at and starts building. Same as .build auto.", () -> {
+				String err = ((breezeclient.breezeclient.client.modules.SchematicBuilder) mod).buildNow(file == null ? null : file.get().trim());
+				if (err != null) Toasts.show(mod.name(), "Could not start: " + err);
+			});
+			act(m, "List schematic files", "Shows the schematics found next to the mod jar and in the other search folders. Same as .build files.", "build files");
 			if (file != null) {
 				m.addAction("Load the file named above", "Reads the schematic named in the File field. Same as .build load <file>.", () -> {
 					if (file.get().isBlank()) Toasts.show(mod.name(), "Type a file name in the File field first (see List schematic files).");

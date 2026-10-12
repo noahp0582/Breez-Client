@@ -415,14 +415,19 @@ public final class Modules {
 		});
 		c.register(new Command() {
 			public String name() { return "build"; }
-			public String usage() { return "build <files|load <file>|origin [x y z]|start|pause|stop|status>"; }
+			public String usage() { return "build <auto [file]|files|load <file>|origin [x y z]|start|pause|stop|status>"; }
 			public void run(String[] a, Consumer<String> reply) {
 				var mc = net.minecraft.client.Minecraft.getInstance();
 				String sub = a.length == 0 ? "status" : a[0].toLowerCase();
 				switch (sub) {
+					case "auto" -> {
+						String err = builder.buildNow(a.length > 1 ? String.join(" ", java.util.Arrays.copyOfRange(a, 1, a.length)) : null);
+						reply.accept(err == null ? "Building " + builder.status() : "Could not start: " + err);
+					}
 					case "files" -> {
 						var f = SchematicBuilder.files();
-						reply.accept(f.isEmpty() ? "No schematics in " + SchematicBuilder.dir() : String.join(", ", f));
+						reply.accept(f.isEmpty() ? "No schematics found. Put .litematic, .schem or .nbt files next to the mod jar." : String.join(", ", f));
+						for (String line : SchematicBuilder.describeFolders()) reply.accept("  " + line);
 					}
 					case "load" -> {
 						if (a.length < 2) { reply.accept("Usage: " + usage()); return; }

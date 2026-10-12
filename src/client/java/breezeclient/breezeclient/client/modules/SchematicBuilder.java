@@ -1,12 +1,14 @@
 package breezeclient.breezeclient.client.modules;
 
 import breezeclient.breezeclient.client.humanize.RotationController;
+import breezeclient.breezeclient.client.input.Keys;
 import breezeclient.breezeclient.client.nav.PathWalker;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.humanize.ActionLimiter;
 import breezeclient.breezeclient.core.schem.SchematicData;
 import breezeclient.breezeclient.core.schem.SchematicReader;
+import breezeclient.breezeclient.core.settings.BoolSetting;
 import breezeclient.breezeclient.core.settings.NumberSetting;
 import breezeclient.breezeclient.core.settings.StringSetting;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -34,7 +36,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.stream.Stream;
 
@@ -44,18 +48,25 @@ import java.util.stream.Stream;
  * half-stairs; other facing-dependent blocks are placed but may need manual rotation (counted in status).
  */
 public class SchematicBuilder extends Module {
-	private enum State { IDLE, PICK, WALK, AIM, PLACE, VERIFY, NEED_ITEMS, DONE }
+	private enum State { IDLE, PICK, WALK, DIG, AIM, PLACE, VERIFY, NEED_ITEMS, DONE }
 
 	private record Target(BlockPos pos, BlockState want) {}
 
 	private final StringSetting file = add(new StringSetting("File", ""));
 	private final NumberSetting reach = add(new NumberSetting("Reach", 4.0, 2.5, 4.5));
 	private final NumberSetting delay = add(new NumberSetting("Delay (ticks)", 4, 1, 20));
+	private final BoolSetting autoDig = add(new BoolSetting("Auto dig", true), "General",
+		"Break the blocks that are in the way of the build with the best pickaxe in your hotbar, looking at each one first. Works with 3x3 pickaxes: blocks they clear are simply skipped. Containers, spawners and unbreakable blocks are never dug.");
+	private final BoolSetting creativeSupply = add(new BoolSetting("Creative: take missing blocks", true), "General",
+		"In creative mode, a block you do not have is taken from the creative inventory into your hotbar, the way pick block does.");
 
 	private final Random rng = new Random();
 	private final ActionLimiter limiter = new ActionLimiter(rng);
 	private final PathWalker walker = new PathWalker();
 
+	private List<Target> all = List.of();
+	private int digTicks;
+	private int lookTicks;
 	private List<Target> queue = List.of();
 	private final List<Target> deferred = new ArrayList<>();
 	private int idx;
@@ -74,28 +85,162 @@ public class SchematicBuilder extends Module {
 
 	public SchematicBuilder() { super("SchematicBuilder", Category.WORLD); }
 
+	/** Breez's own schematics folder (kept for people who already use it). */
 	public static Path dir() { return FabricLoader.getInstance().getConfigDir().resolve("breez-client").resolve("schematics"); }
 
-	public static List<String> files() {
-		try (Stream<Path> s = Files.isDirectory(dir()) ? Files.list(dir()) : Stream.<Path>empty()) {
-			return s.map(p -> p.getFileName().toString()).filter(n -> n.endsWith(".litematic") || n.endsWith(".schem") || n.endsWith(".nbt")).sorted().toList();
-		} catch (IOException e) {
-			return List.of();
+	/**
+	 * Folders searched for schematics, in order: the folder this mod's jar sits in, the mods folder, Breez's own folder
+	 * and Litematica's {@code schematics} folder. Only folders that exist are returned (Breez's own is created).
+	 */
+	public static List<Path> searchDirs() {
+		var loader = FabricLoader.getInstance();
+		LinkedHashSet<Path> out = new LinkedHashSet<>();
+		try {
+			loader.getModContainer("breez-client").ifPresent(c -> {
+				try {
+					for (Path root : c.getOrigin().getPaths()) {
+						Path abs = root.toAbsolutePath().normalize();
+						if (Files.isRegularFile(abs) && abs.getParent() != null) out.add(abs.getParent()); // the jar's folder
+					}
+				} catch (UnsupportedOperationException ignored) {
+					// a nested or generated mod has no path of its own
+				}
+			});
+		} catch (RuntimeException ignored) {
+			// fall back to the folders below
 		}
+		out.add(loader.getGameDir().resolve("mods").toAbsolutePath().normalize());
+		try {
+			Files.createDirectories(dir());
+		} catch (IOException ignored) {
+			// listing simply skips it
+		}
+		out.add(dir().toAbsolutePath().normalize());
+		out.add(loader.getGameDir().resolve("schematics").toAbsolutePath().normalize());
+		List<Path> existing = new ArrayList<>();
+		for (Path p : out) if (Files.isDirectory(p)) existing.add(p);
+		return existing;
+	}
+
+	private static boolean isSchematic(String n) {
+		String l = n.toLowerCase(Locale.ROOT);
+		return l.endsWith(".litematic") || l.endsWith(".schem") || l.endsWith(".nbt");
+	}
+
+	/** Every schematic file in the search folders, first folder wins when a name appears twice. */
+	public static List<Path> found() {
+		java.util.Map<String, Path> byName = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+		for (Path d : searchDirs()) {
+			try (Stream<Path> s = Files.list(d)) {
+				s.filter(Files::isRegularFile).filter(p -> isSchematic(p.getFileName().toString()))
+					.forEach(p -> byName.putIfAbsent(p.getFileName().toString(), p));
+			} catch (IOException ignored) {
+				// an unreadable folder is skipped
+			}
+		}
+		return new ArrayList<>(byName.values());
+	}
+
+	public static List<String> files() {
+		List<String> out = new ArrayList<>();
+		for (Path p : found()) out.add(p.getFileName().toString());
+		return out;
+	}
+
+	/** Finds a schematic by file name (extension optional, case ignored) in the search folders. */
+	public static Path locate(String name) {
+		String want = name.trim();
+		if (want.isEmpty()) return null;
+		for (Path p : found()) {
+			String n = p.getFileName().toString();
+			if (n.equalsIgnoreCase(want)) return p;
+		}
+		for (Path p : found()) {
+			String n = p.getFileName().toString();
+			int dot = n.lastIndexOf('.');
+			if (dot > 0 && n.substring(0, dot).equalsIgnoreCase(want)) return p;
+		}
+		return null;
+	}
+
+	/** The most recently changed schematic found, or null. */
+	public static Path newest() {
+		Path best = null;
+		long bestTime = Long.MIN_VALUE;
+		for (Path p : found()) {
+			try {
+				long t = Files.getLastModifiedTime(p).toMillis();
+				if (t > bestTime) {
+					bestTime = t;
+					best = p;
+				}
+			} catch (IOException ignored) {
+				// skip it
+			}
+		}
+		return best;
+	}
+
+	private static String searched() {
+		StringBuilder sb = new StringBuilder();
+		for (Path d : searchDirs()) sb.append(sb.length() == 0 ? "" : "; ").append(d);
+		return sb.toString();
 	}
 
 	/** @return an error message, or null when the file loaded. */
 	public String load(String name) {
-		Path p = dir().resolve(name).normalize();
-		if (!p.startsWith(dir().normalize())) return "File must be inside " + dir();
+		Path p = locate(name);
+		if (p == null) return "no schematic named '" + name + "'. Put .litematic, .schem or .nbt files next to the mod jar (searched: " + searched() + ")";
 		try {
-			loaded = SchematicReader.read(Files.readAllBytes(p), name);
-			file.set(name);
+			loaded = SchematicReader.read(Files.readAllBytes(p), p.getFileName().toString());
+			file.set(p.getFileName().toString());
 			return null;
 		} catch (IOException e) {
 			loaded = null;
-			return e.getMessage();
+			return p.getFileName() + ": " + e.getMessage();
 		}
+	}
+
+	/**
+	 * Loads a schematic (the named one, else the File setting, else the newest one found), puts its minimum corner where
+	 * you are looking (or two blocks ahead of you) and starts building.
+	 *
+	 * @return an error message, or null when the build started
+	 */
+	public String buildNow(String name) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || mc.level == null) return "join a world first";
+		String pick = name == null || name.isBlank() ? file.get() : name;
+		if (pick == null || pick.isBlank()) {
+			Path n = newest();
+			if (n == null) return "no schematics found. Put .litematic, .schem or .nbt files next to the mod jar (searched: " + searched() + ")";
+			pick = n.getFileName().toString();
+		}
+		String err = load(pick);
+		if (err != null) return err;
+		BlockPos at;
+		if (mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK) {
+			at = bh.getBlockPos().relative(bh.getDirection()); // the spot on the face you are looking at
+		} else {
+			Direction f = mc.player.getDirection();
+			at = mc.player.blockPosition().relative(f, 2);
+		}
+		origin = at;
+		if (enabled()) setEnabled(false);
+		setEnabled(true);
+		return enabled() ? null : "could not start";
+	}
+
+	/** One line per folder searched with how many schematics each holds, for .build files and the GUI. */
+	public static List<String> describeFolders() {
+		List<String> out = new ArrayList<>();
+		List<Path> all = found();
+		for (Path d : searchDirs()) {
+			int n = 0;
+			for (Path p : all) if (d.equals(p.getParent())) n++;
+			out.add(d + "  (" + n + " schematic" + (n == 1 ? "" : "s") + ")");
+		}
+		return out;
 	}
 
 	public void setOrigin(BlockPos p) { origin = p; }
@@ -105,7 +250,7 @@ public class SchematicBuilder extends Module {
 	public boolean loaded() { return loaded != null; }
 
 	public String status() {
-		if (loaded == null) return "No schematic loaded. Put files in " + dir() + " and use .build load <file>.";
+		if (loaded == null) return "No schematic loaded. Put files next to the mod jar and use .build auto [file] (searched: " + searched() + ").";
 		return String.format("%s: %d/%d placed, %d skipped, %d deferred, state %s%s", file.get(), placed, loaded.blocks().size(), skipped,
 			deferred.size(), state.name().toLowerCase(), orientationUnsure > 0 ? ", " + orientationUnsure + " orientation-dependent blocks may need rotating" : "");
 	}
@@ -122,7 +267,7 @@ public class SchematicBuilder extends Module {
 	protected void onEnable() {
 		Minecraft mc = Minecraft.getInstance();
 		if (loaded == null || origin == null || mc.level == null) {
-			EspModule.say("SchematicBuilder: load a schematic and set the origin first (.build load / .build origin).");
+			EspModule.say("SchematicBuilder: nothing to build yet. Use .build auto [file] (or the 'Load and build' button) to load a schematic and start at your crosshair.");
 			setEnabled(false);
 			return;
 		}
@@ -132,6 +277,7 @@ public class SchematicBuilder extends Module {
 			if (st == null || st.isAir()) continue;
 			q.add(new Target(origin.offset(b.x(), b.y(), b.z()), st));
 		}
+		all = List.copyOf(q);
 		queue = q;
 		deferred.clear();
 		idx = 0;
@@ -143,7 +289,7 @@ public class SchematicBuilder extends Module {
 
 	@Override
 	protected void onDisable() {
-		Minecraft.getInstance().options.keyShift.setDown(false);
+		Keys.release(Minecraft.getInstance().options.keyShift);
 		walker.cancel();
 		RotationController.clear();
 		state = State.IDLE;
@@ -168,7 +314,9 @@ public class SchematicBuilder extends Module {
 		if (p == null || mc.level == null || mc.gameMode == null) return;
 		walker.tick();
 		if (p.containerMenu != p.inventoryMenu) p.closeContainer(); // a click opened a chest/crafting table: never stay inside it
-		mc.options.keyShift.setDown(state == State.AIM || state == State.PLACE || state == State.VERIFY); // sneak so clicks do not use containers or doors
+		// sneak so clicks do not use containers or doors
+		if (state == State.AIM || state == State.PLACE || state == State.VERIFY) Keys.press(mc.options.keyShift);
+		else Keys.release(mc.options.keyShift);
 		if (timer > 0) {
 			timer--;
 			return;
@@ -176,6 +324,7 @@ public class SchematicBuilder extends Module {
 		switch (state) {
 			case PICK -> pick(mc, p);
 			case WALK -> walk(mc, p);
+			case DIG -> dig(mc, p);
 			case AIM -> aim(mc, p);
 			case PLACE -> place(mc, p);
 			case VERIFY -> verify(mc, p);
@@ -217,13 +366,20 @@ public class SchematicBuilder extends Module {
 			break;
 		}
 		if (idx >= queue.size()) {
-			if (!deferred.isEmpty() && pass < 2) {
+			// one more look at the whole build: a 3x3 pickaxe (or anything else) may have taken built blocks with it
+			List<Target> missing = new ArrayList<>();
+			for (Target a : all) {
+				if (!mc.level.getChunkSource().hasChunk(a.pos().getX() >> 4, a.pos().getZ() >> 4)) continue;
+				if (mc.level.getBlockState(a.pos()).getBlock() != a.want().getBlock()) missing.add(a);
+			}
+			if (!missing.isEmpty() && pass < 4) {
 				pass++;
-				queue = new ArrayList<>(deferred);
+				queue = missing;
 				deferred.clear();
 				idx = 0;
 				return;
 			}
+			placed = all.size() - missing.size();
 			state = State.DONE;
 			return;
 		}
@@ -237,9 +393,67 @@ public class SchematicBuilder extends Module {
 			state = State.WALK;
 			return;
 		}
+		BlockState inWay = mc.level.getBlockState(t.pos());
+		if (!inWay.isAir() && !inWay.canBeReplaced() && inWay.getBlock() != t.want().getBlock()) {
+			if (!autoDig.get()) {
+				skip("something else is there (turn on Auto dig)");
+				return;
+			}
+			if (!diggable(mc, t.pos())) {
+				skip("cannot dig " + inWay.getBlock().getName().getString());
+				return;
+			}
+			state = State.DIG;
+			digTicks = 0;
+			return;
+		}
 		state = State.AIM;
 		stage = 0;
 		plannedHit = null;
+	}
+
+	private static boolean diggable(Minecraft mc, BlockPos pos) {
+		BlockState s = mc.level.getBlockState(pos);
+		if (s.getDestroySpeed(mc.level, pos) < 0 || mc.level.getBlockEntity(pos) != null) return false; // unbreakable, containers, spawners
+		return !UtilityModules.NEVER_MINE.contains(BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString());
+	}
+
+	/** Digs the block in the way: best pickaxe, looking at it first, one block at a time. */
+	private void dig(Minecraft mc, LocalPlayer p) {
+		Target t = current();
+		if (t == null) {
+			state = State.PICK;
+			return;
+		}
+		BlockPos pos = t.pos();
+		BlockState cur = mc.level.getBlockState(pos);
+		if (cur.isAir() || cur.canBeReplaced() || cur.getBlock() == t.want().getBlock()) { // gone, maybe with a 3x3 pickaxe
+			mc.gameMode.stopDestroyBlock();
+			state = State.PICK;
+			return;
+		}
+		if (++digTicks > 400) {
+			mc.gameMode.stopDestroyBlock();
+			skip("digging timed out");
+			return;
+		}
+		int bestSlot = p.getInventory().getSelectedSlot();
+		float best = p.getInventory().getItem(bestSlot).isEmpty() ? 1f : p.getInventory().getItem(bestSlot).getDestroySpeed(cur);
+		for (int i = 0; i < 9; i++) {
+			ItemStack s = p.getInventory().getItem(i);
+			float v = s.isEmpty() ? 1f : s.getDestroySpeed(cur);
+			if (v > best + 0.01f) {
+				best = v;
+				bestSlot = i;
+			}
+		}
+		if (bestSlot != p.getInventory().getSelectedSlot()) p.getInventory().setSelectedSlot(bestSlot);
+		// it has to be the block under the crosshair before the first hit lands
+		if (!(mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK && bh.getBlockPos().equals(pos))) {
+			RotationController.aimAtPoint(Vec3.atCenterOf(pos), 14f);
+			return;
+		}
+		if (mc.gameMode.continueDestroyBlock(pos, bh.getDirection())) p.swing(InteractionHand.MAIN_HAND);
 	}
 
 	private void walk(Minecraft mc, LocalPlayer p) {
@@ -247,9 +461,7 @@ public class SchematicBuilder extends Module {
 			case WALKING -> { }
 			case ARRIVED -> {
 				RotationController.clear();
-				state = State.AIM;
-				stage = 0;
-				plannedHit = null;
+				state = State.PICK;
 				timer = limiter.between(2, 6);
 			}
 			default -> {
@@ -350,6 +562,21 @@ public class SchematicBuilder extends Module {
 				return -3;
 			}
 		}
+		if (creativeSupply.get() && p.hasInfiniteMaterials()) {
+			int hot = p.getInventory().getSelectedSlot();
+			for (int i = 0; i < 9; i++) {
+				if (p.getInventory().getItem(i).isEmpty()) {
+					hot = i;
+					break;
+				}
+			}
+			p.getInventory().setSelectedSlot(hot);
+			ItemStack stack = new ItemStack(item, item.getDefaultMaxStackSize());
+			p.getInventory().setItem(hot, stack); // shown at once; the server learns of it from the packet below
+			mc.gameMode.handleCreativeModeItemAdd(stack, 36 + hot);
+			timer = limiter.nextDelayTicks(3, 1, 2);
+			return -3;
+		}
 		return -2;
 	}
 
@@ -359,10 +586,20 @@ public class SchematicBuilder extends Module {
 			state = State.PICK;
 			return;
 		}
-		BlockHitResult use = plannedHit;
-		if (mc.hitResult instanceof BlockHitResult cross && cross.getBlockPos().equals(plannedHit.getBlockPos()) && cross.getDirection() == plannedHit.getDirection()) {
-			use = new BlockHitResult(cross.getLocation(), cross.getDirection(), cross.getBlockPos(), false);
+		// it only places while the crosshair really is on the face it planned: no clicking at a spot you are not looking at
+		if (!(mc.hitResult instanceof BlockHitResult cross) || !cross.getBlockPos().equals(plannedHit.getBlockPos()) || cross.getDirection() != plannedHit.getDirection()) {
+			if (++lookTicks > 50) { // could not get the crosshair there: try again from scratch
+				lookTicks = 0;
+				plannedHit = null;
+				if (++retries >= 3) skip("could not look at the place");
+				else state = State.AIM;
+				return;
+			}
+			RotationController.aimAtPoint(plannedHit.getLocation(), 12f);
+			return;
 		}
+		lookTicks = 0;
+		BlockHitResult use = new BlockHitResult(cross.getLocation(), cross.getDirection(), cross.getBlockPos(), false);
 		mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, use);
 		p.swing(InteractionHand.MAIN_HAND);
 		state = State.VERIFY;
