@@ -40,6 +40,8 @@ public final class NavTest {
 	private static void tick(Minecraft mc) {
 		if (ticks < 0 || mc.player == null || mc.level == null) return;
 		ticks++;
+		mc.options.pauseOnLostFocus = false; // unattended: a pause menu would stop the pathing dead
+		if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) mc.setScreen(null);
 		if (ticks == 20) {
 			cmd(mc, "gamemode survival @a");
 			cmd(mc, "give @a minecraft:diamond_pickaxe");
