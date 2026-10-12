@@ -47,6 +47,43 @@ public final class Gfx {
 		rect(x + 2, y + h - 1, w - 4, 1, c);
 	}
 
+	/** Top-to-bottom gradient. */
+	public void gradient(int x, int y, int w, int h, int top, int bottom) {
+		if (w > 0 && h > 0) g.fillGradient(x, y, x + w, y + h, top, bottom);
+	}
+
+	/** Rounded rectangle with a top-to-bottom gradient. */
+	public void rgradient(int x, int y, int w, int h, int top, int bottom) {
+		if (!theme.rounded.get() || w < 6 || h < 6) {
+			gradient(x, y, w, h, top, bottom);
+			return;
+		}
+		rect(x + 2, y, w - 4, 1, top);
+		rect(x + 1, y + 1, w - 2, 1, top);
+		gradient(x, y + 2, w, h - 4, top, bottom);
+		rect(x + 1, y + h - 2, w - 2, 1, bottom);
+		rect(x + 2, y + h - 1, w - 4, 1, bottom);
+	}
+
+	/** Soft drop shadow around a panel: four rings that fade out, drawn outside the panel so its own color is untouched. */
+	public void shadow(int x, int y, int w, int h) {
+		if (!theme.shadows.get()) return;
+		for (int i = 1; i <= 4; i++) {
+			int c = (46 - i * 10) << 24;
+			int sx = x - i, sy = y - i + 2, sw = w + i * 2, sh = h + i * 2;
+			rect(sx + 1, sy, sw - 2, 1, c);
+			rect(sx + 1, sy + sh - 1, sw - 2, 1, c);
+			rect(sx, sy + 1, 1, sh - 2, c);
+			rect(sx + sw - 1, sy + 1, 1, sh - 2, c);
+		}
+	}
+
+	/** A color lightened toward white (t > 0) or darkened toward black (t < 0), alpha kept. */
+	public static int shade(int argb, double t) {
+		int a = argb & 0xFF000000;
+		return a | (ColorMath.mix(argb | 0xFF000000, t >= 0 ? 0xFFFFFFFF : 0xFF000000, Math.abs(t)) & 0xFFFFFF);
+	}
+
 	public void outline(int x, int y, int w, int h, int c) {
 		rect(x, y, w, 1, c);
 		rect(x, y + h - 1, w, 1, c);

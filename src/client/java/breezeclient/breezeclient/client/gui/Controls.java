@@ -61,9 +61,9 @@ public final class Controls {
 
 		@Override
 		public void render(Gfx g, int mx, int my) {
-			boolean hov = hit(mx, my);
-			int bg = accentFill ? (hov ? g.accent() : g.theme.accentFaded(0.75)) : (hov ? g.accent() & 0x00FFFFFF | 0x66000000 : g.widgetBg());
-			g.rrect(x, y, w, h, bg);
+			double hov = Anim.to(this, hit(mx, my));
+			int bg = accentFill ? ColorMath.mix(g.theme.accentFaded(0.75), g.accent(), hov) : ColorMath.mix(g.widgetBg(), g.accent() & 0x00FFFFFF | 0xAA000000, hov * 0.75);
+			g.rgradient(x, y, w, h, Gfx.shade(bg, 0.1), bg);
 			g.textCentered(g.fit(label.get(), w - 4), x + w / 2, y + 2, g.text());
 		}
 
@@ -90,10 +90,11 @@ public final class Controls {
 
 		@Override
 		public void render(Gfx g, int mx, int my) {
-			int bx = x + w - 10, by = y + 2;
-			boolean on = get.getAsBoolean();
-			g.rrect(bx, by, 9, 9, hit(mx, my) ? ColorMath.mix(g.widgetBg(), 0xFFFFFFFF, 0.15) : g.widgetBg());
-			if (on) g.rrect(bx + 2, by + 2, 5, 5, g.accent());
+			int bx = x + w - 17, by = y + 2;
+			double on = Anim.to(this, get.getAsBoolean());
+			int track = ColorMath.mix(hit(mx, my) ? ColorMath.mix(g.widgetBg(), 0xFFFFFFFF, 0.15) : g.widgetBg(), g.theme.accentFaded(0.85) | 0xFF000000, on);
+			g.rrect(bx, by, 16, 9, track);
+			g.rrect(bx + 1 + (int) Math.round(on * 7), by + 1, 7, 7, ColorMath.mix(0xFFB8B8C0, 0xFFFFFFFF, on));
 		}
 
 		@Override
@@ -247,7 +248,9 @@ public final class Controls {
 			}
 			g.rrect(x, y, w, h, g.widgetBg());
 			double frac = (s.get() - s.min()) / (s.max() - s.min());
-			g.rrect(x, y, Math.max(2, (int) (w * frac)), h, g.theme.accentFaded(0.8));
+			int fw = Math.max(2, (int) (w * frac));
+			g.rgradient(x, y, fw, h, Gfx.shade(g.theme.accentFaded(0.85), 0.14), g.theme.accentFaded(0.7));
+			if (dragging || hit(mx, my)) g.rect(Math.min(x + w - 2, x + fw - 1), y + 1, 2, h - 2, 0xDDFFFFFF);
 			g.textCentered(format(s.get(), integral), x + w / 2, y + 2, g.text());
 		}
 

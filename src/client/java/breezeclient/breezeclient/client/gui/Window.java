@@ -13,8 +13,12 @@ public class Window {
 	public final Container content = new Container();
 	public double scroll;
 	public int titleColorOverride;
+	/** Small dim text at the right of the title bar (e.g. "3/27"); null for none. */
+	public java.util.function.Supplier<String> badge;
+	/** Not drawn and not clickable (a category with no search match). */
+	public boolean hidden;
 
-	private final int[] state; // x, y, collapsed
+	private final int[] state; // x, y, collapsed, moved by hand
 	private boolean dragging;
 	private int dragDx, dragDy;
 	private boolean scrollDrag;
@@ -33,13 +37,21 @@ public class Window {
 		state[0] = x;
 		state[1] = y;
 	}
+	/** True once you have dragged it; until then a screen may place it wherever its layout wants. */
+	public boolean movedByHand() { return state[3] != 0; }
 	public boolean collapsed() { return state[2] != 0; }
 	public void setCollapsed(boolean c) { state[2] = c ? 1 : 0; }
-	public int height() { return HEADER + (collapsed() ? 0 : viewH + PAD); }
+	/** 0 collapsed .. 1 open, eased so collapsing slides instead of snapping. */
+	private double open = -1;
+
+	public int height() { return HEADER + (int) Math.round((viewH + PAD) * Math.max(0, open)); }
 
 	public void layout(Gfx g) {
-		contentH = collapsed() ? 0 : content.layout(g, x() + PAD, y() + HEADER + PAD - (int) scroll, w - PAD * 2 - 4);
-		int avail = Math.max(40, maxH - HEADER - PAD * 2);
+		if (hidden) return;
+		open = open < 0 ? (collapsed() ? 0 : 1) : Anim.to(this, collapsed() ? 0 : 1);
+		if (open <= 0) return; // fully collapsed: the last size is kept for the next opening
+		contentH = content.layout(g, x() + PAD, y() + HEADER + PAD - (int) scroll, w - PAD * 2 - 4);
+		int avail = Math.max(14, maxH - HEADER - PAD);
 		viewH = Math.min(contentH + PAD, avail);
 		scroll = ScrollMath.clamp(scroll, contentH + PAD, viewH);
 		Widget r = Widget.reveal;
@@ -52,28 +64,38 @@ public class Window {
 		}
 	}
 
-	public boolean hit(int mx, int my) { return mx >= x() && mx < x() + w && my >= y() && my < y() + height(); }
+	public boolean hit(int mx, int my) { return !hidden && mx >= x() && mx < x() + w && my >= y() && my < y() + height(); }
 
 	private boolean inContent(int mx, int my) {
 		return !collapsed() && mx >= x() && mx < x() + w && my >= y() + HEADER && my < y() + HEADER + viewH + PAD;
 	}
 
 	public void render(Gfx g, int mx, int my) {
+		if (hidden) return;
 		int x = x(), y = y();
-		g.rrect(x, y, w, height(), g.panel());
-		g.rrect(x, y, w, HEADER, g.title());
-		g.rect(x + 3, y + HEADER - 1, w - 6, 1, g.accent());
-		g.text(g.fit(title, w - 24), x + 5, y + 4, titleColorOverride != 0 ? titleColorOverride : g.text());
-		g.text(collapsed() ? "+" : "-", x + w - 10, y + 4, g.dim());
-		if (collapsed()) return;
-		g.scissor(x, y + HEADER, w, viewH + PAD);
+		int h = height();
+		boolean headHover = mx >= x && mx < x + w && my >= y && my < y + HEADER;
+		g.shadow(x, y, w, h);
+		g.rrect(x, y, w, h, g.panel());
+		int head = g.title();
+		g.rgradient(x, y, w, HEADER, Gfx.shade(head, headHover ? 0.16 : 0.09), head);
+		g.rect(x, y + HEADER - 1, w, 1, g.theme.accentFaded(0.35));
+		g.rect(x, y + HEADER - 1, Math.max(8, (int) (w * (0.3 + 0.7 * open))), 1, g.accent());
+		String b = badge == null ? "" : badge.get();
+		int bw = b.isEmpty() ? 0 : g.width(b) + 4;
+		g.text(g.fit(title, w - 22 - bw), x + 6, y + 4, titleColorOverride != 0 ? titleColorOverride : g.text());
+		if (!b.isEmpty()) g.text(b, x + w - 14 - g.width(b), y + 4, g.dim());
+		g.text(collapsed() ? "+" : "-", x + w - 10, y + 4, headHover ? g.text() : g.dim());
+		if (open <= 0) return;
+		g.scissor(x, y + HEADER, w, h - HEADER);
 		content.render(g, inContent(mx, my) ? mx : -1000, inContent(mx, my) ? my : -1000);
 		g.endScissor();
-		if (contentH + PAD > viewH) {
+		if (contentH + PAD > viewH && !collapsed()) {
 			int track = viewH;
 			double thumb = ScrollMath.thumbHeight(contentH + PAD, viewH, track, 12);
 			double off = ScrollMath.thumbOffset(scroll, contentH + PAD, viewH, track, thumb);
-			g.rect(x + w - 4, y + HEADER + (int) off, 3, (int) thumb, g.theme.accentFaded(0.7));
+			g.rect(x + w - 3, y + HEADER + 1, 2, track - 2, 0x18FFFFFF);
+			g.rect(x + w - 3, y + HEADER + (int) off, 2, (int) thumb, g.theme.accentFaded(scrollDrag ? 1.0 : 0.75));
 		}
 	}
 
@@ -100,6 +122,7 @@ public class Window {
 
 	public void drag(int mx, int my, int screenW, int screenH) {
 		if (dragging) {
+			state[3] = 1;
 			moveTo(Math.max(-w + 30, Math.min(screenW - 30, mx - dragDx)), Math.max(0, Math.min(screenH - HEADER, my - dragDy)));
 		} else if (scrollDrag) {
 			double thumb = ScrollMath.thumbHeight(contentH + PAD, viewH, viewH, 12);

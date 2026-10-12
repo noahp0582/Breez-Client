@@ -73,7 +73,10 @@ public final class Toasts {
 		synchronized (LIVE) { return LIVE.size(); }
 	}
 
-	public static void render(Gfx g, int screenW, int screenH) {
+	public static void render(Gfx g, int screenW, int screenH) { render(g, screenW, screenH, false); }
+
+	/** @param inGui a Breez screen is open: pop-ups go to the bottom right, clear of the tab bar and the windows under it */
+	public static void render(Gfx g, int screenW, int screenH, boolean inGui) {
 		GuiTheme t = g.theme;
 		long life = (long) (t.toastSeconds.get() * 1000);
 		long now = System.currentTimeMillis();
@@ -86,23 +89,28 @@ public final class Toasts {
 				double slideOut = age > life ? Math.min(1, (age - life) / 400.0) : 0;
 				double visible = ease(slideIn) * (1 - ease(slideOut));
 				int px, py;
-				switch (t.toastPosition.get()) {
+				switch (inGui ? GuiTheme.ToastPosition.BOTTOM_RIGHT : t.toastPosition.get()) {
 					case TOP_RIGHT -> {
 						px = screenW - W - 6 + (int) ((1 - visible) * (W + 10));
 						py = 6 + slot * (H + GAP);
 					}
 					case BOTTOM_RIGHT -> {
 						px = screenW - W - 6 + (int) ((1 - visible) * (W + 10));
-						py = screenH - H - 6 - slot * (H + GAP);
+						py = screenH - H - (inGui ? 20 : 6) - slot * (H + GAP);
 					}
 					default -> {
 						px = screenW / 2 - W / 2;
 						py = 6 + slot * (H + GAP) - (int) ((1 - visible) * (H + 12));
 					}
 				}
-				g.rrect(px, py, W, H, ColorMath.withAlpha(t.background.get(), 235));
+				int bg = ColorMath.withAlpha(t.background.get(), 240);
 				int bar = toast.color == 0 ? g.accent() : toast.color;
+				g.shadow(px, py, W, H);
+				g.rgradient(px, py, W, H, Gfx.shade(bg, 0.08), bg);
 				g.rect(px, py + 2, 2, H - 4, bar);
+				// time left, as a thin line that runs out
+				double leftFrac = Math.max(0, 1 - age / (double) life);
+				g.rect(px + 4, py + H - 2, (int) ((W - 8) * leftFrac), 1, ColorMath.fade(bar, 0.55));
 				g.text(g.fit(toast.title, W - 14), px + 8, py + 5, bar);
 				g.text(g.fit(toast.merged > 0 ? toast.body + "  (+" + toast.merged + ")" : toast.body, W - 14), px + 8, py + 17, g.text());
 				slot++;

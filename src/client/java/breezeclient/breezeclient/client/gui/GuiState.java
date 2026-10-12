@@ -19,7 +19,7 @@ import java.util.Map;
 public final class GuiState {
 	public static final GuiTheme THEME = new GuiTheme();
 	public static final breezeclient.breezeclient.core.gui.ClientSettings CLIENT = new breezeclient.breezeclient.core.gui.ClientSettings();
-	/** window id -> {x, y, collapsed(0/1)} */
+	/** window id -> {x, y, collapsed(0/1), moved by hand(0/1)} */
 	public static final Map<String, int[]> WINDOWS = new HashMap<>();
 	/** hud element id -> {x, y} (x, y relative to its anchor corner) */
 	public static final Map<String, int[]> HUD = new HashMap<>();
@@ -85,6 +85,11 @@ public final class GuiState {
 
 	/** Returns the saved window entry, creating it from the given defaults. */
 	public static int[] window(String id, int defX, int defY) {
-		return WINDOWS.computeIfAbsent(id, k -> new int[] {defX, defY, 0});
+		int[] s = WINDOWS.computeIfAbsent(id, k -> new int[] {defX, defY, 0, 0});
+		if (s.length < 4) { // saved by a version without the "moved by hand" flag
+			s = java.util.Arrays.copyOf(s, 4);
+			WINDOWS.put(id, s);
+		}
+		return s;
 	}
 }

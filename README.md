@@ -48,7 +48,8 @@ Drop the jar from `build/libs` (not the `-sources` one) into `.minecraft/mods` t
 | AntiAFK, AutoEat | Small irregular camera turns and hops; eats food from the hotbar when hungry. |
 | CrystalMacro, TotemMacro | Places and breaks end crystals at your crosshair; refills the offhand totem. |
 | SpawnerPickup | Walks to each spawner, mines it with a silk touch pickaxe (looks away 90 degrees to the right mid-way, then looks back and finishes), then runs your home command and moves **only spawners** into your ender chest. Set the chest with `.spawner chest`. |
-| SchematicBuilder | Builds `.litematic`, `.schem` and `.nbt` files layer by layer in straight sweeps. `.build files`, `.build load <file>`, `.build origin`, `.build start`. |
+| SchematicBuilder | Builds `.litematic`, `.schem` and `.nbt` files layer by layer. Finds schematics next to the mod jar, walks into reach, moves to a spot that can see a face next to the block, looks at it and places; digs what is in the way. `.build auto [file]` loads and builds at your crosshair; also `.build files`, `.build load <file>`, `.build origin`, `.build start`. **Buy missing blocks** (off by default) opens the auction house, searches through the sign button for the block it ran out of and buys the cheapest listings, within *Max price per block*, optional per-block limits (`obsidian=2k`) and *Max total spend*. |
+| AutoDig | Clears every block inside a box you mark with two corners (`.dig pos1`, `.dig pos2`, `.dig start`, or the buttons on its page), top layer first. Never breaks containers or spawners, leaves blocks next to lava, and reports what it left and why. Works with the DonutSMP shard pickaxe: a hotbar pickaxe whose name contains `shard` is treated as 3x3, used where its slab stays inside the box, and the rim is finished with an ordinary pickaxe. |
 | Macros | `.macro add <name> <script>`; script steps: `say`, `wait`, `slot`, `use`, `attack`, `look`, `turn`, `sneak`, `jump`, `loop`. Bind with `.bind`. |
 
 ### Detection status
@@ -69,7 +70,7 @@ modules as something that can get you banned.
 | Status | Modules |
 |---|---|
 | Detected | HitBox, TunnelBaseFinder |
-| Use at Risk | TotemMacro (Auto Totem), AutoInvTotem, StaticHitBoxes, RTPBaseFinder, AntiTrap, ItemDropper, AutoSell, AutoSpawnerSell, SchematicBuilder, SpawnerPickup, ChestLooter, Baritone |
+| Use at Risk | TotemMacro (Auto Totem), AutoInvTotem, StaticHitBoxes, RTPBaseFinder, AntiTrap, ItemDropper, AutoSell, AutoSpawnerSell, SchematicBuilder, AutoDig, SpawnerPickup, ChestLooter, Baritone |
 | Undetected | everything else |
 
 ### More modules
@@ -127,10 +128,13 @@ sees it, so the lookup itself is not proxied. Radio bundles the LGPL-licensed JL
 
 ### The GUI (Right Shift)
 
-Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD) over draggable, scrollable windows.
+Meteor-style: a tab bar (Modules, Config, GUI, Macros, Profiles, Waypoints, HUD) over draggable, scrollable windows with soft shadows,
+gradient headers and eased hover, toggle, collapse and open animations. The category windows lay themselves out in a grid that fills
+the screen and never overlap; each header shows how many of its modules are on.
 Left click a module toggles it, right click opens its settings page (grouped, collapsible sections, tooltips, per-setting reset,
-color picker, list editors with block/item search, key bind, hold-to-enable). `Ctrl+F` focuses the module search.
-- **GUI tab:** accent/text/background colors, opacity, scale, rounded corners, animation speed, HUD module-list side, toast settings, reset layout.
+color picker, list editors with block/item search, key bind, hold-to-enable); the three dots on a hovered module open it too.
+Just start typing to search (or `Ctrl+F`); categories with no match hide, `Esc` clears the search.
+- **GUI tab:** color presets (Breez, Ocean, Mint, Sunset, Rose, Mono), accent/text/background colors, window shadows, opacity, scale, rounded corners, animation speed, HUD module-list side, toast settings, reset layout.
 - **Actions in the module pages:** everything that used to need a typed command is a button or field in an "Actions" section of the module it belongs to
   (right click the module): spawner chest, schematic load/origin, seed verify/clear, chunk/stash/geode/sus/coverage stats, export and clear, staff import,
   player lookup, and the pathing tasks (go to, mine, follow, tunnel, this way, stop, pause, resume). The buttons run the same commands, so chat still works.
@@ -199,6 +203,11 @@ and ESP, freecam and fullbright are only invisible because they are local. Treat
 - Dev self-test: set the `BREEZ_SELFTEST` environment variable and launch with `--quickPlaySingleplayer <world>`; it enables the
   passive modules, checks SeedOres against the world and writes `run/breez-selftest.txt`.
 - SchematicBuilder handles axis blocks, slabs and half-stairs. Other facing-dependent blocks are placed but may need rotating.
+- SchematicBuilder's auction buying and AutoDig's 3x3 pickaxe handling were written from how DonutSMP is described, not tested on
+  the live server (there is no way to do that from a test world). The buyer only clicks a listing whose price it could read from
+  the tooltip, counts money as spent the moment it presses confirm, and stops buying for the rest of the build the first time a
+  window is not what it expects. Try it with a low *Max total spend* first, and adjust the button names in its settings if the
+  server words them differently. AutoDig assumes the 3x3 slab lies across the face you hit.
 - Kill switch cannot see staff who are vanished by a plugin (they never reach your client).
 - Rendering was written against the 1.21.11 render pipeline; if a future Minecraft version changes it, `render/BreezRender.java` is the file to look at.
 

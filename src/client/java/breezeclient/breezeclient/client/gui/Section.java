@@ -33,8 +33,11 @@ public class Section extends Container {
 	@Override
 	public void render(Gfx g, int mx, int my) {
 		boolean hov = mx >= x && mx < x + w && my >= y && my < y + Controls.ROW_H;
-		g.rrect(x, y, w, Controls.ROW_H, hov ? g.theme.accentFaded(0.45) : g.theme.accentFaded(0.28));
-		g.text((collapsed() ? "+ " : "- ") + title, x + 4, y + 2, g.text());
+		double glow = Anim.to(this, hov);
+		g.rrect(x, y, w, Controls.ROW_H, g.theme.accentFaded(0.2 + 0.2 * glow));
+		g.rect(x, y + 2, 2, Controls.ROW_H - 4, g.accent());
+		g.text(title, x + 7, y + 2, g.text());
+		g.text(collapsed() ? "+" : "-", x + w - 9, y + 2, g.dim());
 		if (!collapsed()) super.render(g, mx, my);
 	}
 

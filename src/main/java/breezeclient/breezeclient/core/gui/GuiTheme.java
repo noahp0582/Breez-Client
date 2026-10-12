@@ -28,6 +28,7 @@ public final class GuiTheme {
 	public final NumberSetting scale = new NumberSetting("Scale", 1.0, 0.6, 2.0);
 	public final BoolSetting rounded = new BoolSetting("Rounded corners", true);
 	public final BoolSetting dimBackground = new BoolSetting("Dim game behind GUI", true);
+	public final BoolSetting shadows = new BoolSetting("Window shadows", true);
 	public final NumberSetting animationSpeed = new NumberSetting("Animation speed", 1.0, 0.0, 3.0);
 	public final EnumSetting<Side> moduleListSide = new EnumSetting<>("HUD module list side", Side.RIGHT);
 	public final BoolSetting hudShadow = new BoolSetting("HUD text shadow", true);
@@ -43,6 +44,7 @@ public final class GuiTheme {
 		scale.setMeta("Layout", "Scales the whole GUI independently of Minecraft's GUI scale.");
 		rounded.setMeta("Layout", "Round the corners of windows and buttons.");
 		dimBackground.setMeta("Layout", "Darken the world while a GUI screen is open.");
+		shadows.setMeta("Layout", "Soft shadow under windows, tooltips and toasts.");
 		animationSpeed.setMeta("Layout", "Speed of GUI animations. 0 disables them.");
 		moduleListSide.setMeta("HUD", "Which side of the screen the enabled-module list uses.");
 		hudShadow.setMeta("HUD", "Draw a shadow behind HUD text.");
@@ -52,7 +54,7 @@ public final class GuiTheme {
 	}
 
 	public List<Setting<?>> settings() {
-		return List.of(accent, textColor, background, backgroundAlpha, scale, rounded, dimBackground, animationSpeed, moduleListSide, hudShadow,
+		return List.of(accent, textColor, background, backgroundAlpha, scale, rounded, dimBackground, shadows, animationSpeed, moduleListSide, hudShadow,
 			toastsEnabled, toastSeconds, toastPosition);
 	}
 

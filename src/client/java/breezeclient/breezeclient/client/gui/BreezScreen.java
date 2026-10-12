@@ -15,7 +15,10 @@ import java.util.List;
 /** Base of every Breez screen: scaling, tab bar, window management, tooltips and toasts. */
 public abstract class BreezScreen extends Screen {
 	public static final String[] TABS = {"Modules", "Config", "GUI", "Macros", "Profiles", "Waypoints", "HUD"};
-	public static final int TAB_H = 16;
+	public static final int TAB_H = 18;
+	/** When the GUI was last opened from the game (not from another tab), for the open animation. */
+	private static long openedAt;
+	private static final Object TAB_X = new Object(), TAB_W = new Object();
 
 	protected final List<Window> windows = new ArrayList<>();
 	protected final String tab;
@@ -26,6 +29,7 @@ public abstract class BreezScreen extends Screen {
 	protected BreezScreen(String tab) {
 		super(Component.literal("Breez Client"));
 		this.tab = tab;
+		if (!(net.minecraft.client.Minecraft.getInstance().screen instanceof BreezScreen)) openedAt = System.currentTimeMillis();
 	}
 
 	protected GuiTheme theme() { return GuiState.THEME; }
@@ -56,7 +60,16 @@ public abstract class BreezScreen extends Screen {
 
 	@Override
 	public void renderBackground(GuiGraphics g, int mx, int my, float delta) {
-		if (theme().dimBackground.get()) g.fill(0, 0, width, height, 0x88000000);
+		if (!theme().dimBackground.get()) return;
+		int a = (int) (opening() * 0x70), b = (int) (opening() * 0xA8);
+		g.fillGradient(0, 0, width, height, a << 24, b << 24);
+	}
+
+	/** 0 just opened .. 1 settled. */
+	private double opening() {
+		double speed = theme().animationSpeed.get();
+		if (speed <= 0) return 1;
+		return Anim.easeOut((System.currentTimeMillis() - openedAt) / (170.0 / speed));
 	}
 
 	protected int mouseX(double x) { return (int) Math.floor(x / scale()); }
@@ -77,12 +90,16 @@ public abstract class BreezScreen extends Screen {
 		renderExtra(g, mx, my);
 		// front window is last in the list
 		for (Window w : windows) w.layout(g);
+		float drop = (float) ((1 - opening()) * -7);
+		graphics.pose().pushMatrix();
+		graphics.pose().translate(0, drop);
 		// hover only reaches the top-most window under the mouse
 		for (Window w : windows) w.render(g, w.hit(mx, my) && !coveredBy(w, mx, my) ? mx : -1000, w.hit(mx, my) && !coveredBy(w, mx, my) ? my : -1000);
+		graphics.pose().popMatrix();
 		renderTabs(g, mx, my);
 		renderOverlay(g, mx, my);
 		if (Widget.pendingTooltip != null) drawTooltip(g, Widget.pendingTooltip, mx, my);
-		Toasts.render(g, vw, vh);
+		Toasts.render(g, vw, vh, true);
 		graphics.pose().popMatrix();
 	}
 
@@ -101,24 +118,48 @@ public abstract class BreezScreen extends Screen {
 	/** Drawn above windows but below the tooltip. */
 	protected void renderOverlay(Gfx g, int mx, int my) {}
 
+	/** Brand and tab padding shrink on narrow screens so every tab stays reachable. */
+	private int[] tabMetrics(net.minecraft.client.gui.Font font) {
+		int tabsW = 0;
+		for (String t : TABS) tabsW += font.width(t);
+		int brand = font.width("Breez") + 12;
+		int pad = 14;
+		if (8 + brand + tabsW + TABS.length * pad > vw) brand = 0;
+		while (pad > 6 && 8 + brand + tabsW + TABS.length * pad > vw) pad--;
+		return new int[] {6 + brand, pad};
+	}
+
 	private void renderTabs(Gfx g, int mx, int my) {
-		g.rect(0, 0, vw, TAB_H, g.title());
-		g.rect(0, TAB_H - 1, vw, 1, g.theme.accentFaded(0.9));
-		int x = 6;
+		int bar = g.title() | 0xFF000000; // opaque: HUD elements being edited must not show through the tabs
+		g.gradient(0, 0, vw, TAB_H, Gfx.shade(bar, 0.12), bar);
+		g.rect(0, TAB_H - 1, vw, 1, g.theme.accentFaded(0.45));
+		int[] m = tabMetrics(g.font);
+		if (m[0] > 6) {
+			g.text("Breez", 7, 5, g.accent());
+			g.rect(m[0] - 4, 4, 1, TAB_H - 9, 0x30FFFFFF);
+		}
+		int x = m[0];
 		for (String t : TABS) {
-			int tw = g.width(t) + 14;
+			int tw = g.width(t) + m[1];
 			boolean active = t.equals(tab);
 			boolean hov = mx >= x && mx < x + tw && my >= 0 && my < TAB_H;
-			if (active) g.rect(x, TAB_H - 3, tw, 2, g.accent());
-			g.text(t, x + 7, 4, active ? g.text() : (hov ? g.text() : g.dim()));
+			double glow = Anim.to(t, hov && !active);
+			if (glow > 0.01) g.rrect(x + 1, 2, tw - 2, TAB_H - 5, ((int) (glow * 0x24) << 24) | 0xFFFFFF);
+			if (active) {
+				// the marker slides from the tab that was open before
+				int ix = (int) Math.round(Anim.to(TAB_X, x + 2)), iw = (int) Math.round(Anim.to(TAB_W, tw - 4));
+				g.rrect(ix, 2, iw, TAB_H - 5, g.theme.accentFaded(0.22));
+				g.rect(ix, TAB_H - 2, iw, 2, g.accent());
+			}
+			g.text(t, x + m[1] / 2, 5, active || hov ? g.text() : g.dim());
 			x += tw;
 		}
-		g.text("Breez Client", vw - g.width("Breez Client") - 6, 4, g.accent());
 	}
 
 	protected int tabsEnd(Gfx g) {
-		int x = 6;
-		for (String t : TABS) x += g.width(t) + 14;
+		int[] m = tabMetrics(g.font);
+		int x = m[0];
+		for (String t : TABS) x += g.width(t) + m[1];
 		return x;
 	}
 
@@ -128,12 +169,14 @@ public abstract class BreezScreen extends Screen {
 		int w = 0;
 		for (String l : lines) w = Math.max(w, g.width(l));
 		int h = lines.size() * 10 + 6;
-		int tx = Math.min(mx + 10, vw - w - 10), ty = Math.min(my + 12, vh - h - 4);
-		g.rrect(tx, ty, w + 8, h, 0xF0101010);
-		g.outline(tx, ty, w + 8, h, g.theme.accentFaded(0.8));
+		int tx = Math.max(2, Math.min(mx + 10, vw - w - 12)), ty = Math.min(my + 12, vh - h - 4);
+		if (ty < my + 4 && my - h - 4 >= 0) ty = my - h - 4; // no room below the pointer: go above it instead of covering it
+		g.shadow(tx, ty, w + 10, h);
+		g.rrect(tx, ty, w + 10, h, 0xF4101014);
+		g.rect(tx, ty + 2, 2, h - 4, g.accent());
 		int yy = ty + 3;
 		for (String l : lines) {
-			g.text(l, tx + 4, yy, g.text());
+			g.text(l, tx + 6, yy, g.text());
 			yy += 10;
 		}
 	}
@@ -148,9 +191,10 @@ public abstract class BreezScreen extends Screen {
 		Widget f = Widget.focused();
 		if (f != null && !f.hit(mx, my)) Widget.clearFocus();
 		if (my < TAB_H && button == 0) {
-			int x = 6;
+			int[] m = tabMetrics(Minecraft_font());
+			int x = m[0];
 			for (String t : TABS) {
-				int tw = Minecraft_font().width(t) + 14;
+				int tw = Minecraft_font().width(t) + m[1];
 				if (mx >= x && mx < x + tw) {
 					if (!t.equals(tab)) Tabs.open(t);
 					return true;
