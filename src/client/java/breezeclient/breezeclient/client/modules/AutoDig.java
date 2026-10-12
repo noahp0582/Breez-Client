@@ -63,7 +63,8 @@ public class AutoDig extends Module {
 	private final NumberSetting minDurability = add(new NumberSetting("Keep tools above (uses)", 5, 0, 100), "Safety", "Do not use a tool with this few uses left (0 = use anything).");
 
 	private final PathWalker walker = new PathWalker();
-	private final Set<Long> skipped = new HashSet<>();
+	/** Blocks left for the rest of the run, with the reason. */
+	private final java.util.Map<Long, String> skipped = new java.util.HashMap<>();
 	/** Could not be seen from where we stood: tried again once something else has been dug. */
 	private final Set<Long> hidden = new HashSet<>();
 	private DigArea area;
@@ -76,6 +77,8 @@ public class AutoDig extends Module {
 	private int broken;
 	private int edgeLeft;
 	private boolean digging;
+	private int hiddenRounds;
+	private String lastResult = "";
 
 	public AutoDig() { super("AutoDig", Category.WORLD); }
 
@@ -105,8 +108,8 @@ public class AutoDig extends Module {
 		DigArea a = area();
 		if (a == null) return "No area yet. Look at a block and use .dig pos1, then .dig pos2 at the opposite corner.";
 		String size = a.sizeX() + "x" + a.sizeY() + "x" + a.sizeZ();
-		if (!enabled()) return "Area " + size + " (" + a.volume() + " blocks). .dig start to begin.";
-		return "Area " + size + ": " + broken + " dug, layer y=" + layer + (skipped.isEmpty() ? "" : ", " + skipped.size() + " left alone");
+		if (!enabled()) return "Area " + size + " (" + a.volume() + " blocks). .dig start to begin." + (lastResult.isEmpty() ? "" : " Last run: " + lastResult);
+		return "Area " + size + ": " + broken + " dug, layer y=" + layer + (skipped.isEmpty() ? "" : ", " + leftAlone());
 	}
 
 	// lifecycle --------------------------------------------------------------------------------------------------
@@ -125,7 +128,8 @@ public class AutoDig extends Module {
 		}
 		skipped.clear();
 		hidden.clear();
-		broken = edgeLeft = 0;
+		broken = edgeLeft = hiddenRounds = 0;
+		lastResult = "";
 		layer = area.maxY();
 		target = null;
 		state = State.PICK;
@@ -146,6 +150,7 @@ public class AutoDig extends Module {
 	}
 
 	private void finish(String message) {
+		lastResult = message;
 		Toasts.show("AutoDig", message);
 		setEnabled(false);
 	}
@@ -226,23 +231,27 @@ public class AutoDig extends Module {
 		while (layer >= area.minY()) {
 			BlockPos best = null;
 			double bestScore = Double.MAX_VALUE;
-			boolean anyHidden = false;
+			BlockPos nearHidden = null;
+			double nearHiddenD = Double.MAX_VALUE;
 			BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
 			for (int x = area.minX(); x <= area.maxX(); x++) {
 				for (int z = area.minZ(); z <= area.maxZ(); z++) {
 					m.set(x, layer, z);
 					if (!mc.level.getChunkSource().hasChunk(x >> 4, z >> 4)) continue;
 					long key = m.asLong();
-					if (skipped.contains(key) || !diggable(mc, m)) continue;
+					if (skipped.containsKey(key) || !diggable(mc, m)) continue;
 					if (avoidLava.get() && touchesLava(mc, m)) {
-						skipped.add(key);
-						continue;
-					}
-					if (hidden.contains(key)) {
-						anyHidden = true;
+						skipped.put(key, "next to lava");
 						continue;
 					}
 					double score = eye.distanceToSqr(x + 0.5, layer + 0.5, z + 0.5);
+					if (hidden.contains(key)) {
+						if (score < nearHiddenD) {
+							nearHiddenD = score;
+							nearHidden = m.immutable();
+						}
+						continue;
+					}
 					// a 3x3 pickaxe does the most from the middle of a slab, so the rim waits until the middle is gone
 					if (haveWide && !area.planeInside(x, layer, z, 1)) score += 64;
 					if (score < bestScore) {
@@ -255,19 +264,38 @@ public class AutoDig extends Module {
 				begin(mc, p, best);
 				return;
 			}
-			if (anyHidden) { // everything left on this layer was out of sight: one more look from here, then give up on it
+			if (nearHidden != null && hiddenRounds++ < 3) {
+				// everything left on this layer was out of sight from where we stood: go and stand next to the nearest, then look again
+				hidden.clear();
+				if (walker.start(PathWalker.posOf(nearHidden), 1.6)) {
+					target = nearHidden;
+					digTicks = lookTicks = 0;
+					state = State.WALK;
+					return;
+				}
+				continue;
+			}
+			if (nearHidden != null) {
 				for (int x = area.minX(); x <= area.maxX(); x++) {
 					for (int z = area.minZ(); z <= area.maxZ(); z++) {
 						long key = BlockPos.asLong(x, layer, z);
-						if (hidden.remove(key)) skipped.add(key);
+						if (hidden.remove(key)) skipped.put(key, "out of sight");
 					}
 				}
 			}
 			layer--;
+			hiddenRounds = 0;
 		}
-		String left = skipped.isEmpty() ? "" : ", " + skipped.size() + " left alone"
-			+ (edgeLeft > 0 ? " (" + edgeLeft + " on the edge need an ordinary pickaxe in your hotbar)" : "");
-		finish("Done: " + broken + " blocks dug" + left);
+		finish("Done: " + broken + " blocks dug" + (skipped.isEmpty() ? "" : ", " + leftAlone()));
+	}
+
+	/** "4 left alone (3 out of sight, 1 next to lava)". */
+	public String leftAlone() {
+		java.util.Map<String, Integer> by = new java.util.TreeMap<>();
+		for (String why : skipped.values()) by.merge(why, 1, Integer::sum);
+		StringBuilder sb = new StringBuilder();
+		for (var e : by.entrySet()) sb.append(sb.length() == 0 ? "" : ", ").append(e.getValue()).append(' ').append(e.getKey());
+		return skipped.size() + " left alone (" + sb + ")";
 	}
 
 	private void begin(Minecraft mc, LocalPlayer p, BlockPos pos) {
@@ -275,7 +303,7 @@ public class AutoDig extends Module {
 		digTicks = lookTicks = 0;
 		if (p.getEyePosition().distanceTo(Vec3.atCenterOf(pos)) > reach.get() - 0.2) {
 			if (!walker.start(PathWalker.posOf(pos), Math.max(2.0, reach.get() - 1.0))) {
-				giveUp(pos, walkTries++ < 2);
+				giveUp(pos, walkTries++ < 2, "no way to walk there");
 				return;
 			}
 			state = State.WALK;
@@ -286,8 +314,9 @@ public class AutoDig extends Module {
 	}
 
 	/** Leaves a block: for now (retried when the view changes) or for the rest of the run. */
-	private void giveUp(BlockPos pos, boolean retryLater) {
-		(retryLater ? hidden : skipped).add(pos.asLong());
+	private void giveUp(BlockPos pos, boolean retryLater, String why) {
+		if (retryLater) hidden.add(pos.asLong());
+		else skipped.put(pos.asLong(), why);
 		target = null;
 		state = State.PICK;
 	}
@@ -301,7 +330,7 @@ public class AutoDig extends Module {
 				state = State.DIG;
 			}
 			default -> {
-				if (target != null) giveUp(target, false);
+				if (target != null) giveUp(target, walkTries++ < 2, "could not get close enough");
 				else state = State.PICK;
 			}
 		}
@@ -315,18 +344,19 @@ public class AutoDig extends Module {
 		if (!diggable(mc, target)) { // gone: we dug it, or a 3x3 hit took it
 			if (digging) broken++;
 			hidden.clear(); // the view changed: blocks that were out of sight get another try
+			hiddenRounds = 0;
 			stopDig(mc);
 			state = State.PICK;
 			return;
 		}
 		if (avoidDrops.get() && opensDrop(mc, p, target)) {
 			stopDig(mc);
-			giveUp(target, false);
+			giveUp(target, false, "a drop below it");
 			return;
 		}
 		if (++digTicks > 600) {
 			stopDig(mc);
-			giveUp(target, false);
+			giveUp(target, false, "took too long to break");
 			return;
 		}
 		if (p.getEyePosition().distanceTo(Vec3.atCenterOf(target)) > reach.get() + 0.3) { // we fell or were pushed away
@@ -339,7 +369,7 @@ public class AutoDig extends Module {
 			stopDig(mc);
 			if (mc.hitResult instanceof BlockHitResult other && other.getType() == HitResult.Type.BLOCK && !RotationController.busy() && lookTicks > 6) {
 				BlockPos inWay = other.getBlockPos();
-				if (area.contains(inWay.getX(), inWay.getY(), inWay.getZ()) && diggable(mc, inWay) && !skipped.contains(inWay.asLong())
+				if (area.contains(inWay.getX(), inWay.getY(), inWay.getZ()) && diggable(mc, inWay) && !skipped.containsKey(inWay.asLong())
 					&& !(avoidLava.get() && touchesLava(mc, inWay))) {
 					target = inWay; // something else in the box is in front of it: take that first
 					digTicks = lookTicks = 0;
@@ -347,7 +377,7 @@ public class AutoDig extends Module {
 				}
 			}
 			if (++lookTicks > 40) {
-				giveUp(target, true);
+				giveUp(target, true, "");
 				return;
 			}
 			RotationController.aimAtPoint(Vec3.atCenterOf(target), 14f);
@@ -358,7 +388,7 @@ public class AutoDig extends Module {
 		if (slot < 0) {
 			edgeLeft++;
 			stopDig(mc);
-			giveUp(target, false);
+			giveUp(target, false, "on the edge, needs an ordinary pickaxe");
 			return;
 		}
 		if (slot != p.getInventory().getSelectedSlot()) {

@@ -52,7 +52,7 @@ public final class BuildTest {
 		if (server != null) server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), c));
 	}
 
-	/** 5x4x5: stone brick floor, oak plank walls two high with log corners, a top-slab roof over the middle. */
+	/** 5x3x5: stone brick floor, oak plank walls two high with log corners, and a ceiling of top slabs inside the upper ring of the walls. */
 	private static void design() {
 		for (int x = 0; x < 5; x++) for (int z = 0; z < 5; z++) WANTS.add(new Want(x, 0, z, "minecraft:stone_bricks", null));
 		for (int y = 1; y <= 2; y++) {
@@ -65,7 +65,7 @@ public final class BuildTest {
 				}
 			}
 		}
-		for (int x = 1; x <= 3; x++) for (int z = 1; z <= 3; z++) WANTS.add(new Want(x, 3, z, "minecraft:oak_slab", "type=top"));
+		for (int x = 1; x <= 3; x++) for (int z = 1; z <= 3; z++) WANTS.add(new Want(x, 2, z, "minecraft:oak_slab", "type=top"));
 	}
 
 	private static void writeFile() throws Exception {
@@ -104,7 +104,7 @@ public final class BuildTest {
 		}
 		ListTag size = new ListTag();
 		size.add(IntTag.valueOf(5));
-		size.add(IntTag.valueOf(4));
+		size.add(IntTag.valueOf(3));
 		size.add(IntTag.valueOf(5));
 		CompoundTag root = new CompoundTag();
 		root.put("size", size);
@@ -160,6 +160,7 @@ public final class BuildTest {
 		if (finished) return;
 		finished = true;
 		var b = Modules.builder;
+		for (String n : b.notes()) LOG.add("  skip: " + n);
 		LOG.add("builder status: " + b.status() + " after " + (ticks - startedAt) + " ticks, enabled=" + b.enabled());
 		BlockPos o = b.origin();
 		int bad = 0, total = 0;

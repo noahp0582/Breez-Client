@@ -44,11 +44,23 @@ public class AutoEat extends Module {
 		if (p.getFoodData().getFoodLevel() > hunger.get() || p.isUsingItem()) return;
 		int slot = findFood(p);
 		if (slot < 0) return;
+		if (useWouldInteract(mc)) return; // holding use here would open the chest or trade with the villager instead of eating
 		savedSlot = p.getInventory().getSelectedSlot();
 		p.getInventory().setSelectedSlot(slot);
 		Keys.press(mc.options.keyUse);
 		ticksEating = 0;
 		idleTicks = 0;
+	}
+
+	/** True when the crosshair is on something that right click acts on: an entity, or a block with a menu or data. */
+	private static boolean useWouldInteract(Minecraft mc) {
+		if (mc.hitResult == null || mc.level == null) return false;
+		if (mc.hitResult.getType() == net.minecraft.world.phys.HitResult.Type.ENTITY) return true;
+		if (mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult bh && bh.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+			var st = mc.level.getBlockState(bh.getBlockPos());
+			return mc.level.getBlockEntity(bh.getBlockPos()) != null || st.getMenuProvider(mc.level, bh.getBlockPos()) != null;
+		}
+		return false;
 	}
 
 	private int findFood(LocalPlayer p) {

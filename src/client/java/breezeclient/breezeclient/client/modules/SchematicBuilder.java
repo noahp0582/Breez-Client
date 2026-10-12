@@ -87,6 +87,12 @@ public class SchematicBuilder extends Module {
 	private long buyRetryAt;
 	private Item buyRetryItem;
 	private int moves;
+	private int settle;
+	/** Why blocks were skipped in this run (for .build status and the self-test). */
+	private final List<String> notes = new ArrayList<>();
+	private String debug = "";
+
+	public List<String> notes() { return List.copyOf(notes); }
 	private final ActionLimiter limiter = new ActionLimiter(rng);
 	private final PathWalker walker = new PathWalker();
 
@@ -305,6 +311,9 @@ public class SchematicBuilder extends Module {
 			if (st.hasProperty(BlockStateProperties.FACING) || st.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) unsure++;
 			q.add(new Target(origin.offset(b.x(), b.y(), b.z()), st));
 		}
+		// Within a layer: blocks that must be clicked on one particular face (logs, pillars) go first, while that face is still
+		// open; top slabs and upside-down stairs go last, because they hang off the side of a neighbour.
+		q.sort(java.util.Comparator.comparingInt((Target t) -> t.pos().getY()).thenComparingInt(t -> placeRank(t.want())));
 		orientationUnsure = unsure;
 		spentTotal = 0;
 		buyBroken = false;
@@ -323,10 +332,18 @@ public class SchematicBuilder extends Module {
 	@Override
 	protected void onDisable() {
 		if (state == State.BUY) buyer.abort(Minecraft.getInstance());
+		if (state == State.DIG && Minecraft.getInstance().gameMode != null) Minecraft.getInstance().gameMode.stopDestroyBlock(); // never leave a half-dug block cracking
 		Keys.release(Minecraft.getInstance().options.keyShift);
 		walker.cancel();
 		RotationController.clear();
 		state = State.IDLE;
+	}
+
+	private static int placeRank(BlockState s) {
+		if (s.hasProperty(BlockStateProperties.AXIS)) return 0;
+		boolean top = (s.hasProperty(BlockStateProperties.SLAB_TYPE) && s.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.TOP)
+			|| (s.hasProperty(BlockStateProperties.HALF) && s.getValue(BlockStateProperties.HALF) == Half.TOP);
+		return top ? 2 : 1;
 	}
 
 	private static BlockState parse(String s) {
@@ -387,6 +404,7 @@ public class SchematicBuilder extends Module {
 		skipped++;
 		Target t = current();
 		if (t != null && why != null) EspModule.say("SchematicBuilder: skipping " + t.pos().toShortString() + " (" + why + ")");
+		if (t != null && notes.size() < 200) notes.add(t.pos().toShortString() + " " + why + debug);
 		advance();
 	}
 
@@ -478,7 +496,7 @@ public class SchematicBuilder extends Module {
 					if (x == here.getX() && y == here.getY() && z == here.getZ()) continue; // where we already are did not work
 					double d = p.distanceToSqr(x + 0.5, y, z + 0.5);
 					if (d >= bestD || !standable(w, x, y, z)) continue;
-					if (findFace(mc, p, t, new Vec3(x + 0.5, y + p.getEyeHeight(), z + 0.5)) == null) continue;
+					if (findFace(mc, p, t, new Vec3(x + 0.5, y + p.getEyeHeight(net.minecraft.world.entity.Pose.CROUCHING), z + 0.5)) == null) continue;
 					bestD = d;
 					best = new BlockPos(x, y, z);
 				}
@@ -560,6 +578,8 @@ public class SchematicBuilder extends Module {
 			return;
 		}
 		if (plannedHit == null) {
+			if (!p.isCrouching() && settle++ < 6) return; // it places while sneaking: plan from the eye height it will have then
+			settle = 0;
 			plannedHit = findFace(mc, p, t, p.getEyePosition());
 			if (plannedHit == null) {
 				if (moveToVantage(mc, p, t)) return;
@@ -612,7 +632,8 @@ public class SchematicBuilder extends Module {
 			double dist = eye.distanceTo(hit);
 			if (dist > reach.get()) continue;
 			var clip = mc.level.clip(new ClipContext(eye, hit.add(hit.subtract(eye).normalize().scale(0.05)), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
-			if (clip.getType() != HitResult.Type.BLOCK || !clip.getBlockPos().equals(support)) continue;
+			// the ray has to land on that very face: a face on the far side of the block is hit through a nearer one, and place() would wait for it forever
+			if (clip.getType() != HitResult.Type.BLOCK || !clip.getBlockPos().equals(support) || clip.getDirection() != face) continue;
 			if (dist < bestD) {
 				bestD = dist;
 				best = new BlockHitResult(hit, face, support, false);
@@ -668,6 +689,9 @@ public class SchematicBuilder extends Module {
 		if (!(mc.hitResult instanceof BlockHitResult cross) || !cross.getBlockPos().equals(plannedHit.getBlockPos()) || cross.getDirection() != plannedHit.getDirection()) {
 			if (++lookTicks > 50) { // could not get the crosshair there: try again from scratch
 				lookTicks = 0;
+				debug = " [planned " + plannedHit.getBlockPos().toShortString() + " " + plannedHit.getDirection() + " at " + plannedHit.getLocation() + ", crosshair "
+					+ (mc.hitResult instanceof BlockHitResult c2 ? c2.getBlockPos().toShortString() + " " + c2.getDirection() + " " + c2.getType() : String.valueOf(mc.hitResult))
+					+ ", eye " + p.getEyePosition() + ", rot " + p.getYRot() + "/" + p.getXRot() + ", busy " + RotationController.busy() + "]";
 				plannedHit = null;
 				if (++retries >= 3) skip("could not look at the place");
 				else state = State.AIM;
