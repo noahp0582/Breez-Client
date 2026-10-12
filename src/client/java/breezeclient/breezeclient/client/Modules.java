@@ -224,6 +224,8 @@ public final class Modules {
 		m.register(seedOres);
 		builder = new SchematicBuilder();
 		m.register(builder);
+		digger = new breezeclient.breezeclient.client.modules.AutoDig();
+		m.register(digger);
 	}
 
 	/** Switches off everything that acts on its own (pathing, mining, building, macros, camera). Call on disconnect and when a safety fires. */
@@ -231,7 +233,7 @@ public final class Modules {
 		if (spawnerPickup != null) spawnerPickup.setEnabled(false);
 		if (builder != null) builder.setEnabled(false);
 		for (var m : BreezClientClient.macros.all()) m.setEnabled(false);
-		for (String n : new String[] {"AutoMine", "AutoWalk", "ItemDropper", "AutoSell", "AutoSpawnerSell", "RTPBaseFinder", "ElytraGlide"}) {
+		for (String n : new String[] {"AutoMine", "AutoDig", "AutoWalk", "ItemDropper", "AutoSell", "AutoSpawnerSell", "RTPBaseFinder", "ElytraGlide"}) {
 			var mod = BreezClientClient.MODULES.get(n);
 			if (mod != null) mod.setEnabled(false);
 		}
@@ -242,6 +244,7 @@ public final class Modules {
 	public static SpawnerPickup spawnerPickup;
 	public static SeedOres seedOres;
 	public static SchematicBuilder builder;
+	public static breezeclient.breezeclient.client.modules.AutoDig digger;
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
 		breezeclient.breezeclient.client.nav.NavCommands.register(c);
@@ -450,6 +453,36 @@ public final class Modules {
 					case "start" -> builder.setEnabled(true);
 					case "pause", "stop" -> builder.setEnabled(false);
 					case "status" -> reply.accept(builder.status());
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
+		c.register(new Command() {
+			public String name() { return "dig"; }
+			public String usage() { return "dig <pos1|pos2|start|stop|clear|status>"; }
+			public void run(String[] a, Consumer<String> reply) {
+				var mc = net.minecraft.client.Minecraft.getInstance();
+				String sub = a.length == 0 ? "status" : a[0].toLowerCase();
+				switch (sub) {
+					case "pos1", "pos2" -> {
+						if (mc.player == null) { reply.accept("Join a world first."); return; }
+						net.minecraft.core.BlockPos at = mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult bh && bh.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+							? bh.getBlockPos() : mc.player.blockPosition();
+						digger.setCorner(sub.equals("pos1") ? 1 : 2, at);
+						reply.accept("Corner " + sub.charAt(3) + " set to " + at.toShortString() + ". " + digger.status());
+					}
+					case "start" -> {
+						digger.setEnabled(false);
+						digger.setEnabled(true);
+						if (digger.enabled()) reply.accept(digger.status());
+					}
+					case "stop", "pause" -> digger.setEnabled(false);
+					case "clear" -> {
+						digger.setEnabled(false);
+						digger.clearCorners();
+						reply.accept("Area cleared.");
+					}
+					case "status" -> reply.accept(digger.status());
 					default -> reply.accept("Usage: " + usage());
 				}
 			}

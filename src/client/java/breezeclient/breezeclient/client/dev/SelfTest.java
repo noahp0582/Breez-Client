@@ -27,7 +27,7 @@ public final class SelfTest {
 
 	public static void register() {
 		if (System.getenv("BREEZ_SELFTEST") == null) return;
-		if (GuiTour.register() || NavTest.register() || ExtraTest.register() || RelogTest.register() || ModuleBatchTest.register() || BuildTest.register()) return;
+		if (GuiTour.register() || NavTest.register() || ExtraTest.register() || RelogTest.register() || ModuleBatchTest.register() || BuildTest.register() || DigTest.register()) return;
 		ClientPlayConnectionEvents.JOIN.register((h, s, mc) -> ticks = 0);
 		ClientTickEvents.END_CLIENT_TICK.register(SelfTest::tick);
 	}

@@ -10,7 +10,11 @@ import breezeclient.breezeclient.core.schem.SchematicData;
 import breezeclient.breezeclient.core.schem.SchematicReader;
 import breezeclient.breezeclient.core.settings.BoolSetting;
 import breezeclient.breezeclient.core.settings.NumberSetting;
+import breezeclient.breezeclient.core.settings.StringListSetting;
 import breezeclient.breezeclient.core.settings.StringSetting;
+import breezeclient.breezeclient.core.text.PriceParser;
+import breezeclient.breezeclient.client.nav.LevelWorld;
+import net.minecraft.world.phys.AABB;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
@@ -48,7 +52,7 @@ import java.util.stream.Stream;
  * half-stairs; other facing-dependent blocks are placed but may need manual rotation (counted in status).
  */
 public class SchematicBuilder extends Module {
-	private enum State { IDLE, PICK, WALK, DIG, AIM, PLACE, VERIFY, NEED_ITEMS, DONE }
+	private enum State { IDLE, PICK, WALK, DIG, AIM, PLACE, VERIFY, NEED_ITEMS, BUY, DONE }
 
 	private record Target(BlockPos pos, BlockState want) {}
 
@@ -60,7 +64,29 @@ public class SchematicBuilder extends Module {
 	private final BoolSetting creativeSupply = add(new BoolSetting("Creative: take missing blocks", true), "General",
 		"In creative mode, a block you do not have is taken from the creative inventory into your hotbar, the way pick block does.");
 
+	private final BoolSetting reposition = add(new BoolSetting("Move to a better spot", true), "General",
+		"When a block cannot be placed from where it stands (no face in sight, or it is standing in the way), it walks to a spot that can see one before trying again.");
+	private final BoolSetting autoBuy = add(new BoolSetting("Buy missing blocks", false), "Auction",
+		"When it runs out of a block, opens the auction house, searches for it and buys the cheapest listings within the limits below. Off: it waits for you to add the block.");
+	private final StringSetting maxEach = add(new StringSetting("Max price per block", "100"), "Auction",
+		"The most it pays for one block: a listing costs its price divided by its stack size. Accepts 250, 1.5k, 2m.", autoBuy::get);
+	private final StringListSetting limits = add(new StringListSetting("Price limit per block type", List.of()), "Auction",
+		"Overrides for single blocks, written as block=price, e.g. obsidian=2k or minecraft:sea_lantern=900.", autoBuy::get);
+	private final StringSetting budget = add(new StringSetting("Max total spend", "50k"), "Auction",
+		"The most one build may spend in all. Buying stops for the rest of the build once it is reached.", autoBuy::get);
+	private final StringSetting ahCommand = add(new StringSetting("Auction command", "/ah"), "Auction", "Chat command that opens the auction house.", autoBuy::get);
+	private final BoolSetting signSearch = add(new BoolSetting("Search with the sign button", true), "Auction",
+		"Clicks the search sign in the auction window and types the block name on it. Off (or when there is no such button): searches with the command, like /ah oak planks.", autoBuy::get);
+	private final StringSetting searchLabel = add(new StringSetting("Search button contains", "search"), "Auction", "Name of the search button (case ignored). Any sign item is used when nothing has this name.", () -> autoBuy.get() && signSearch.get());
+	private final StringSetting confirmLabel = add(new StringSetting("Confirm button contains", "confirm"), "Auction", "Name of the button that confirms a purchase (case ignored).", autoBuy::get);
+
 	private final Random rng = new Random();
+	private final AuctionBuyer buyer = new AuctionBuyer();
+	private double spentTotal;
+	private boolean buyBroken;
+	private long buyRetryAt;
+	private Item buyRetryItem;
+	private int moves;
 	private final ActionLimiter limiter = new ActionLimiter(rng);
 	private final PathWalker walker = new PathWalker();
 
@@ -271,24 +297,32 @@ public class SchematicBuilder extends Module {
 			setEnabled(false);
 			return;
 		}
+		int unsure = 0;
 		List<Target> q = new ArrayList<>();
 		for (SchematicData.Block b : loaded.linearOrder()) {
 			BlockState st = parse(b.state());
 			if (st == null || st.isAir()) continue;
+			if (st.hasProperty(BlockStateProperties.FACING) || st.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) unsure++;
 			q.add(new Target(origin.offset(b.x(), b.y(), b.z()), st));
 		}
+		orientationUnsure = unsure;
+		spentTotal = 0;
+		buyBroken = false;
+		buyRetryItem = null;
+		moves = 0;
 		all = List.copyOf(q);
 		queue = q;
 		deferred.clear();
 		idx = 0;
 		pass = 0;
-		placed = skipped = orientationUnsure = 0;
+		placed = skipped = 0;
 		state = State.PICK;
 		timer = 10;
 	}
 
 	@Override
 	protected void onDisable() {
+		if (state == State.BUY) buyer.abort(Minecraft.getInstance());
 		Keys.release(Minecraft.getInstance().options.keyShift);
 		walker.cancel();
 		RotationController.clear();
@@ -313,6 +347,11 @@ public class SchematicBuilder extends Module {
 		LocalPlayer p = mc.player;
 		if (p == null || mc.level == null || mc.gameMode == null) return;
 		walker.tick();
+		if (state == State.BUY) {
+			Keys.release(mc.options.keyShift);
+			buy(mc, p);
+			return;
+		}
 		if (p.containerMenu != p.inventoryMenu) p.closeContainer(); // a click opened a chest/crafting table: never stay inside it
 		// sneak so clicks do not use containers or doors
 		if (state == State.AIM || state == State.PLACE || state == State.VERIFY) Keys.press(mc.options.keyShift);
@@ -340,6 +379,7 @@ public class SchematicBuilder extends Module {
 	private void advance() {
 		idx++;
 		retries = 0;
+		moves = 0;
 		state = State.PICK;
 	}
 
@@ -407,9 +447,48 @@ public class SchematicBuilder extends Module {
 			digTicks = 0;
 			return;
 		}
+		// standing in the block's own space: nothing can be placed there until we step out
+		if (p.getBoundingBox().intersects(new AABB(t.pos())) && moveToVantage(mc, p, t)) return;
 		state = State.AIM;
 		stage = 0;
 		plannedHit = null;
+	}
+
+	private static boolean standable(LevelWorld w, int x, int y, int z) {
+		return w.passable(x, y, z) && w.passable(x, y + 1, z) && w.ground(x, y - 1, z);
+	}
+
+	/**
+	 * Walks to the nearest spot from which a face next to the target is in reach and in sight, and which does not put us
+	 * in the target's own space. Tried a few times per block.
+	 *
+	 * @return true when a walk was started
+	 */
+	private boolean moveToVantage(Minecraft mc, LocalPlayer p, Target t) {
+		if (!reposition.get() || moves >= 3) return false;
+		LevelWorld w = new LevelWorld(mc.level);
+		BlockPos tp = t.pos(), here = p.blockPosition();
+		BlockPos best = null;
+		double bestD = Double.MAX_VALUE;
+		for (int dx = -4; dx <= 4; dx++) {
+			for (int dz = -4; dz <= 4; dz++) {
+				for (int dy = -3; dy <= 2; dy++) {
+					int x = tp.getX() + dx, y = tp.getY() + dy, z = tp.getZ() + dz;
+					if (dx == 0 && dz == 0 && (dy == 0 || dy == -1)) continue; // feet or head would be inside the target
+					if (x == here.getX() && y == here.getY() && z == here.getZ()) continue; // where we already are did not work
+					double d = p.distanceToSqr(x + 0.5, y, z + 0.5);
+					if (d >= bestD || !standable(w, x, y, z)) continue;
+					if (findFace(mc, p, t, new Vec3(x + 0.5, y + p.getEyeHeight(), z + 0.5)) == null) continue;
+					bestD = d;
+					best = new BlockPos(x, y, z);
+				}
+			}
+		}
+		if (best == null || !walker.start(PathWalker.posOf(best), 0.5)) return false;
+		moves++;
+		plannedHit = null;
+		state = State.WALK;
+		return true;
 	}
 
 	private static boolean diggable(Minecraft mc, BlockPos pos) {
@@ -481,8 +560,9 @@ public class SchematicBuilder extends Module {
 			return;
 		}
 		if (plannedHit == null) {
-			plannedHit = findFace(mc, p, t);
+			plannedHit = findFace(mc, p, t, p.getEyePosition());
 			if (plannedHit == null) {
+				if (moveToVantage(mc, p, t)) return;
 				deferred.add(t);
 				advance();
 				return;
@@ -510,15 +590,13 @@ public class SchematicBuilder extends Module {
 	}
 
 	/** Finds a neighbouring support block and a point on its face that is in reach and in line of sight. */
-	private BlockHitResult findFace(Minecraft mc, LocalPlayer p, Target t) {
-		Vec3 eye = p.getEyePosition();
+	private BlockHitResult findFace(Minecraft mc, LocalPlayer p, Target t, Vec3 eye) {
 		var want = t.want();
 		Direction.Axis wantAxis = want.hasProperty(BlockStateProperties.AXIS) ? want.getValue(BlockStateProperties.AXIS) : null;
 		double yFrac = 0.5;
 		if (want.hasProperty(BlockStateProperties.SLAB_TYPE) && want.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.TOP) yFrac = 0.8;
 		else if (want.hasProperty(BlockStateProperties.SLAB_TYPE) && want.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.BOTTOM) yFrac = 0.2;
 		if (want.hasProperty(BlockStateProperties.HALF)) yFrac = want.getValue(BlockStateProperties.HALF) == Half.TOP ? 0.8 : 0.2;
-		if (want.hasProperty(BlockStateProperties.FACING) || want.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) orientationUnsure++;
 
 		BlockHitResult best = null;
 		double bestD = Double.MAX_VALUE;
@@ -634,7 +712,6 @@ public class SchematicBuilder extends Module {
 			state = State.PICK;
 			return;
 		}
-		if (stage++ % 100 == 0) EspModule.say("SchematicBuilder: out of " + t.want().getBlock().getName().getString() + ". Add some to your inventory (waiting).");
 		Item item = t.want().getBlock().asItem();
 		for (int i = 0; i < 36; i++) {
 			if (p.getInventory().getItem(i).is(item)) {
@@ -643,5 +720,79 @@ public class SchematicBuilder extends Module {
 				return;
 			}
 		}
+		if (startBuying(mc, p, t, item)) return;
+		if (stage++ % 100 == 0) EspModule.say("SchematicBuilder: out of " + t.want().getBlock().getName().getString() + ". Add some to your inventory (waiting).");
+	}
+
+	// auction house ----------------------------------------------------------------------------------------------
+
+	/** The most to pay for one of this block: its own entry in the per-type list, else the general limit. NaN when unreadable. */
+	private double limitFor(Item item) {
+		var id = BuiltInRegistries.ITEM.getKey(item);
+		for (String entry : limits.get()) {
+			int eq = entry.indexOf('=');
+			if (eq <= 0) continue;
+			String key = entry.substring(0, eq).trim();
+			if (key.equals(id.toString()) || key.equals(id.getPath()) || key.replace(' ', '_').equals(id.getPath())) return PriceParser.parse(entry.substring(eq + 1));
+		}
+		return PriceParser.parse(maxEach.get());
+	}
+
+	/** How many of this block the rest of the build still needs. */
+	private int stillNeeded(Minecraft mc, Item item) {
+		int n = 0;
+		for (int i = idx; i < queue.size(); i++) {
+			Target q = queue.get(i);
+			if (q.want().getBlock().asItem() == item && mc.level.getBlockState(q.pos()).getBlock() != q.want().getBlock()) n++;
+		}
+		for (Target q : deferred) if (q.want().getBlock().asItem() == item) n++;
+		return n;
+	}
+
+	private boolean startBuying(Minecraft mc, LocalPlayer p, Target t, Item item) {
+		if (!autoBuy.get() || buyBroken || p.hasInfiniteMaterials() || mc.screen != null) return false;
+		if (item == buyRetryItem && System.currentTimeMillis() < buyRetryAt) return false;
+		double each = limitFor(item), total = PriceParser.parse(budget.get());
+		if (Double.isNaN(each) || Double.isNaN(total) || each <= 0) {
+			buyBroken = true;
+			EspModule.say("SchematicBuilder: cannot read the price limits (Max price per block / Max total spend). Not buying.");
+			return false;
+		}
+		if (total - spentTotal <= 0) {
+			buyBroken = true;
+			EspModule.say("SchematicBuilder: the spending limit of " + PriceParser.format(total) + " is used up. Not buying any more.");
+			return false;
+		}
+		int want = Math.max(1, Math.min(stillNeeded(mc, item), 27 * item.getDefaultMaxStackSize())); // never more than fits
+		walker.cancel();
+		RotationController.clear();
+		buyer.start(new AuctionBuyer.Config(ahCommand.get(), signSearch.get(), searchLabel.get(), confirmLabel.get(), delay.get()), item, want, each, total - spentTotal);
+		EspModule.say("SchematicBuilder: buying " + t.want().getBlock().getName().getString() + " (up to " + PriceParser.format(each) + " each)");
+		state = State.BUY;
+		return true;
+	}
+
+	private void buy(Minecraft mc, LocalPlayer p) {
+		AuctionBuyer.Result r = buyer.tick(mc, p);
+		if (r == AuctionBuyer.Result.WORKING) return;
+		spentTotal += buyer.spent();
+		Target t = current();
+		Item item = t == null ? null : t.want().getBlock().asItem();
+		switch (r) {
+			case BOUGHT -> EspModule.say("SchematicBuilder: " + buyer.note() + " (" + PriceParser.format(spentTotal) + " spent on this build)");
+			case NOTHING -> {
+				buyRetryItem = item;
+				buyRetryAt = System.currentTimeMillis() + 120_000; // look again in two minutes
+				EspModule.say("SchematicBuilder: nothing to buy, " + buyer.note() + ". Looking again in 2 minutes.");
+			}
+			default -> {
+				buyBroken = true; // something about the auction window is not what we expect: stop spending
+				EspModule.say("SchematicBuilder: auction buying stopped, " + buyer.note() + ".");
+			}
+		}
+		plannedHit = null;
+		stage = 1; // the "out of" reminder waits its turn
+		timer = limiter.between(6, 12);
+		state = State.NEED_ITEMS;
 	}
 }

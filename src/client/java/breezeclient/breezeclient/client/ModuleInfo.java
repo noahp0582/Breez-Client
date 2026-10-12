@@ -49,6 +49,7 @@ public final class ModuleInfo {
 		d("ChestLooter", Detection.USE_AT_RISK);
 		d("Baritone", Detection.USE_AT_RISK);
 		d("AntiTrap", Detection.USE_AT_RISK);
+		d("AutoDig", Detection.USE_AT_RISK);
 		d("ItemDropper", Detection.USE_AT_RISK);
 		d("AutoSell", Detection.USE_AT_RISK);
 		d("AutoSpawnerSell", Detection.USE_AT_RISK);
@@ -126,7 +127,7 @@ public final class ModuleInfo {
 		m("CrystalMacro", "Places and breaks end crystals at your crosshair with randomized timing, laying an obsidian base first when needed.");
 		m("TotemMacro", "Keeps a totem of undying in your offhand, refilling it after a pop.");
 		m("SpawnerPickup", "Walks to spawners, mines them with a silk touch pickaxe, then moves only the spawners into your ender chest.");
-		m("SchematicBuilder", "Builds a loaded schematic layer by layer with eased camera movement. Use .build load / origin / start.");
+		m("SchematicBuilder", "Builds a schematic layer by layer: walks into reach, moves to a spot that can see the block, looks at it and places. Digs what is in the way and can buy missing blocks from the auction house within a price limit. Use .build auto [file].");
 
 		m("AutoDoubleHand", "When your health runs low and a totem is in the offhand, also holds a totem in the main hand so one pop never leaves you empty-handed.");
 		m("AutoInvTotem", "While your inventory is open, moves a totem into the offhand (and optionally a hotbar slot) with ordinary clicks.");
@@ -143,6 +144,7 @@ public final class ModuleInfo {
 		m("KeyPearl", "Bind to a key: each press throws an ender pearl from your hotbar, then returns to your slot.");
 		m("KeyWindCharge", "Bind to a key: each press throws a wind charge from your hotbar, then returns to your slot.");
 		m("AutoMine", "Holds the attack button while your crosshair is on a block that is safe to break. Containers, spawners and unbreakable blocks are skipped.");
+		m("AutoDig", "Clears every block inside a box you mark with two corners, top layer first, walking and looking like a player. Knows the DonutSMP shard pickaxe: one hit takes a 3x3 slab, and the rim of the box is finished with an ordinary pickaxe. Use .dig pos1 / pos2 / start.");
 		m("AutoTool", "Switches to the fastest tool in your hotbar for the block you are breaking, and back when you stop.");
 		m("Fakeplayer", "Spawns a client-side copy of a player where you stand, for testing ESP and aim modules. Nobody else can see it.");
 		m("ItemDropper", "Drops the items on your list (or everything not on the Keep list) from your inventory at a steady pace.");

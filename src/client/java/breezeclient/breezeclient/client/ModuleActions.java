@@ -79,6 +79,14 @@ public final class ModuleActions {
 			act(m, "Pause the build", "Same as .build pause. Start again with the module switch.", "build pause");
 		}
 
+		if ((m = mm.get("AutoDig")) != null) {
+			act(m, "Set corner 1 to the block I look at", "Look at one corner of the area, then click. Same as .dig pos1.", "dig pos1");
+			act(m, "Set corner 2 to the block I look at", "Look at the opposite corner, then click. Same as .dig pos2.", "dig pos2");
+			act(m, "Start digging", "Same as .dig start.", "dig start");
+			act(m, "Show status", "Same as .dig status.", "dig status");
+			act(m, "Clear the area", "Stops and forgets both corners. Same as .dig clear.", "dig clear");
+		}
+
 		if ((m = mm.get("SeedOres")) != null) {
 			m.addSetting(new ProfileSeedSetting(), "Seed", "The real world seed of the server you are on (each server keeps its own). Numbers or any text.");
 			act(m, "Verify against this world", "Singleplayer only: compares the predictions with the real blocks. Same as .seed verify.", "seed verify");
