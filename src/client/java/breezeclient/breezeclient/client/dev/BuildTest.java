@@ -66,6 +66,11 @@ public final class BuildTest {
 			}
 		}
 		for (int x = 1; x <= 3; x++) for (int z = 1; z <= 3; z++) WANTS.add(new Want(x, 2, z, "minecraft:oak_slab", "type=top"));
+		// blocks whose state depends on where the player stands and what is clicked
+		WANTS.add(new Want(1, 1, 1, "minecraft:oak_stairs", "facing=north,half=bottom"));
+		WANTS.add(new Want(3, 1, 3, "minecraft:oak_stairs", "facing=east,half=bottom"));
+		WANTS.add(new Want(3, 1, 1, "minecraft:oak_log", "axis=x"));
+		WANTS.add(new Want(1, 1, 3, "minecraft:stone_slab", "type=bottom"));
 	}
 
 	private static void writeFile() throws Exception {
@@ -172,15 +177,21 @@ public final class BuildTest {
 				var st = mc.level.getBlockState(p);
 				Block want = BuiltInRegistries.BLOCK.getValue(Identifier.parse(w.block()));
 				boolean ok = st.getBlock() == want;
-				if (ok && w.props() != null && w.props().startsWith("axis=")) ok = st.getValue(BlockStateProperties.AXIS).getSerializedName().equals("y");
-				if (ok && w.props() != null && w.props().startsWith("type=")) ok = st.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.TOP;
+				if (ok && w.props() != null) {
+					for (String kv : w.props().split(",")) {
+						String[] e = kv.split("=");
+						boolean same = false;
+						for (var prop : st.getProperties()) if (prop.getName().equals(e[0])) same = st.getValue(prop).toString().equalsIgnoreCase(e[1]);
+						ok &= same;
+					}
+				}
 				if (!ok) {
 					bad++;
-					if (missing.size() < 12) missing.add(w.block() + (w.props() == null ? "" : "[" + w.props() + "]") + " at " + p.toShortString() + " is " + st.getBlock());
+					if (missing.size() < 12) missing.add(w.block() + (w.props() == null ? "" : "[" + w.props() + "]") + " at " + p.toShortString() + " is " + st);
 				}
 			}
 		}
-		LOG.add((bad == 0 && total > 0 ? "PASS" : "FAIL") + " built " + (total - bad) + "/" + total + " blocks (axis and slab type included)" + (missing.isEmpty() ? "" : " missing: " + missing));
+		LOG.add((bad == 0 && total > 0 ? "PASS" : "FAIL") + " built " + (total - bad) + "/" + total + " blocks (stair facing, log axis and slab halves included)" + (missing.isEmpty() ? "" : " missing: " + missing));
 		try {
 			Files.writeString(FabricLoader.getInstance().getGameDir().resolve("build-test.txt"), String.join("\n", LOG) + "\n");
 		} catch (Exception ignored) {

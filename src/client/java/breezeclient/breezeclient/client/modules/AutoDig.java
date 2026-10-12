@@ -3,11 +3,13 @@ package breezeclient.breezeclient.client.modules;
 import breezeclient.breezeclient.client.gui.Toasts;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.nav.LevelWorld;
-import breezeclient.breezeclient.client.nav.PathWalker;
+import breezeclient.breezeclient.client.nav.WorkNavigator;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.RenderFrame;
 import breezeclient.breezeclient.core.dig.DigArea;
+import breezeclient.breezeclient.core.humanize.Rotation;
+import breezeclient.breezeclient.core.humanize.Rotations;
 import breezeclient.breezeclient.core.settings.BoolSetting;
 import breezeclient.breezeclient.core.settings.ColorSetting;
 import breezeclient.breezeclient.core.settings.EnumSetting;
@@ -29,24 +31,34 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
- * Clears every block inside a box you mark with two corners, top layer first. It walks into reach, looks at each block
- * and holds the dig the way a player does. With a 3x3 pickaxe (the DonutSMP shard pickaxe) it counts on one hit taking a
- * whole slab, and swaps to an ordinary pickaxe where that slab would reach outside the box.
+ * Clears every block inside a box you mark with two corners, working down from the top. Like the schematic printers'
+ * breaker, it keeps looking at every block of the box within reach, takes the one it can see that needs the smallest
+ * turn of the head, and digs it; when nothing in reach can be seen, the pathfinder takes it to the nearest spot from
+ * which something can. With a 3x3 pickaxe (the DonutSMP shard pickaxe) it counts on one hit taking a whole slab, and
+ * swaps to an ordinary pickaxe where that slab would reach outside the box.
  */
 public class AutoDig extends Module {
 	public enum Wide { AUTO, ON, OFF }
 
-	private enum State { PICK, WALK, DIG }
+	private enum State { SCAN, NAV, DIG }
 
 	private final StringSetting corner1 = add(new StringSetting("Corner 1 (x y z)", ""), "Area", "One corner of the box to clear. Use the button below or .dig pos1 while looking at a block.");
 	private final StringSetting corner2 = add(new StringSetting("Corner 2 (x y z)", ""), "Area", "The opposite corner. Use the button below or .dig pos2.");
 	private final ColorSetting color = add(new ColorSetting("Outline color", 0xFFFFAA33), "Area", "Color of the box drawn around the area.");
-	private final NumberSetting reach = add(new NumberSetting("Reach", 4.2, 3.0, 4.5), "Digging", "How close it gets before digging a block.");
+	private final NumberSetting reach = add(new NumberSetting("Reach", 4.2, 3.0, 4.5), "Digging", "How far away it digs a block from.");
+	private final NumberSetting layers = add(new NumberSetting("Layers at once", 2, 1, 4), "Digging",
+		"How many layers below the top one it may dig at the same time. 2 clears head and foot height together, so it can walk through what it has dug.");
 	private final EnumSetting<Wide> wide = add(new EnumSetting<>("3x3 pickaxe", Wide.AUTO), "3x3 pickaxe",
 		"Auto: a hotbar pickaxe whose name contains the text below is treated as a 3x3 pickaxe. On: every pickaxe is. Off: none is.");
 	private final StringSetting wideName = add(new StringSetting("3x3 pickaxe name contains", "shard"), "3x3 pickaxe",
@@ -62,22 +74,27 @@ public class AutoDig extends Module {
 	private final NumberSetting stopPlayer = add(new NumberSetting("Stop if player within (0=off)", 0, 0, 64), "Safety", "Turns off when another player comes this close.");
 	private final NumberSetting minDurability = add(new NumberSetting("Keep tools above (uses)", 5, 0, 100), "Safety", "Do not use a tool with this few uses left (0 = use anything).");
 
-	private final PathWalker walker = new PathWalker();
+	private final WorkNavigator nav = new WorkNavigator();
 	/** Blocks left for the rest of the run, with the reason. */
-	private final java.util.Map<Long, String> skipped = new java.util.HashMap<>();
-	/** Could not be seen from where we stood: tried again once something else has been dug. */
+	private final Map<Long, String> skipped = new HashMap<>();
+	/** No way found to a spot that sees these: tried again once something else has been dug. */
 	private final Set<Long> hidden = new HashSet<>();
 	private DigArea area;
-	private State state = State.PICK;
+	private State state = State.SCAN;
 	private BlockPos target;
+	private Vec3 digPoint;
+	private List<BlockPos> frontier = List.of();
 	private int layer;
 	private int digTicks;
 	private int lookTicks;
-	private int walkTries;
-	private int broken;
-	private int edgeLeft;
-	private boolean digging;
+	private int navTicks;
+	private int navFails;
+	private int idleArrivals;
+	private int notReady;
 	private int hiddenRounds;
+	private int wait;
+	private int broken;
+	private boolean digging;
 	private String lastResult = "";
 
 	public AutoDig() { super("AutoDig", Category.WORLD); }
@@ -112,6 +129,15 @@ public class AutoDig extends Module {
 		return "Area " + size + ": " + broken + " dug, layer y=" + layer + (skipped.isEmpty() ? "" : ", " + leftAlone());
 	}
 
+	/** "4 left alone (3 out of reach, 1 next to lava)". */
+	public String leftAlone() {
+		Map<String, Integer> by = new TreeMap<>();
+		for (String why : skipped.values()) by.merge(why, 1, Integer::sum);
+		StringBuilder sb = new StringBuilder();
+		for (var e : by.entrySet()) sb.append(sb.length() == 0 ? "" : ", ").append(e.getValue()).append(' ').append(e.getKey());
+		return skipped.size() + " left alone (" + sb + ")";
+	}
+
 	// lifecycle --------------------------------------------------------------------------------------------------
 
 	@Override
@@ -128,18 +154,18 @@ public class AutoDig extends Module {
 		}
 		skipped.clear();
 		hidden.clear();
-		broken = edgeLeft = hiddenRounds = 0;
+		broken = hiddenRounds = navFails = idleArrivals = notReady = wait = 0;
 		lastResult = "";
 		layer = area.maxY();
 		target = null;
-		state = State.PICK;
+		state = State.SCAN;
 	}
 
 	@Override
 	protected void onDisable() {
 		Minecraft mc = Minecraft.getInstance();
 		stopDig(mc);
-		walker.cancel();
+		nav.cancel();
 		RotationController.clear();
 		target = null;
 	}
@@ -155,36 +181,7 @@ public class AutoDig extends Module {
 		setEnabled(false);
 	}
 
-	// main loop --------------------------------------------------------------------------------------------------
-
-	@Override
-	protected void onTick() {
-		Minecraft mc = Minecraft.getInstance();
-		LocalPlayer p = mc.player;
-		if (p == null || mc.level == null || mc.gameMode == null || area == null) {
-			setEnabled(false);
-			return;
-		}
-		if (mc.screen != null) { // a menu is open: wait, and never keep a dig going behind it
-			stopDig(mc);
-			walker.releaseKeys();
-			return;
-		}
-		if (stopFull.get() && p.getInventory().getFreeSlot() < 0) {
-			finish("Inventory full after " + broken + " blocks");
-			return;
-		}
-		if (stopPlayer.get() > 0 && playerNear(mc, p)) {
-			finish("A player came close: stopped");
-			return;
-		}
-		walker.tick();
-		switch (state) {
-			case PICK -> pick(mc, p);
-			case WALK -> walk(mc, p);
-			case DIG -> dig(mc, p);
-		}
-	}
+	// what may be dug --------------------------------------------------------------------------------------------
 
 	private boolean playerNear(Minecraft mc, LocalPlayer p) {
 		double r2 = stopPlayer.get() * stopPlayer.get();
@@ -224,171 +221,266 @@ public class AutoDig extends Module {
 		return true;
 	}
 
-	private void pick(Minecraft mc, LocalPlayer p) {
-		stopDig(mc);
-		Vec3 eye = p.getEyePosition();
-		boolean haveWide = wideSlot(p) >= 0;
-		while (layer >= area.minY()) {
-			BlockPos best = null;
-			double bestScore = Double.MAX_VALUE;
-			BlockPos nearHidden = null;
-			double nearHiddenD = Double.MAX_VALUE;
-			BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+	/** Still to be dug: in a loaded chunk, diggable, not left alone and not next to lava (those are left alone here). */
+	private boolean wanted(Minecraft mc, BlockPos pos) {
+		long key = pos.asLong();
+		if (skipped.containsKey(key) || !mc.level.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4) || !diggable(mc, pos)) return false;
+		if (avoidLava.get() && touchesLava(mc, pos)) {
+			skipped.put(key, "next to lava");
+			return false;
+		}
+		return true;
+	}
+
+	/** Moves {@link #layer} down to the highest layer that still has something to dig. False when the box is done. */
+	private boolean findLayer(Minecraft mc) {
+		BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+		for (; layer >= area.minY(); layer--) {
 			for (int x = area.minX(); x <= area.maxX(); x++) {
 				for (int z = area.minZ(); z <= area.maxZ(); z++) {
-					m.set(x, layer, z);
-					if (!mc.level.getChunkSource().hasChunk(x >> 4, z >> 4)) continue;
-					long key = m.asLong();
-					if (skipped.containsKey(key) || !diggable(mc, m)) continue;
-					if (avoidLava.get() && touchesLava(mc, m)) {
-						skipped.put(key, "next to lava");
-						continue;
-					}
-					double score = eye.distanceToSqr(x + 0.5, layer + 0.5, z + 0.5);
-					if (hidden.contains(key)) {
-						if (score < nearHiddenD) {
-							nearHiddenD = score;
-							nearHidden = m.immutable();
-						}
-						continue;
-					}
-					// a 3x3 pickaxe does the most from the middle of a slab, so the rim waits until the middle is gone
-					if (haveWide && !area.planeInside(x, layer, z, 1)) score += 64;
-					if (score < bestScore) {
-						bestScore = score;
-						best = m.immutable();
-					}
+					if (wanted(mc, m.set(x, layer, z))) return true;
 				}
 			}
-			if (best != null) {
-				begin(mc, p, best);
-				return;
-			}
-			if (nearHidden != null && hiddenRounds++ < 3) {
-				// everything left on this layer was out of sight from where we stood: go and stand next to the nearest, then look again
-				hidden.clear();
-				if (walker.start(PathWalker.posOf(nearHidden), 1.6)) {
-					target = nearHidden;
-					digTicks = lookTicks = 0;
-					state = State.WALK;
-					return;
-				}
-				continue;
-			}
-			if (nearHidden != null) {
-				for (int x = area.minX(); x <= area.maxX(); x++) {
-					for (int z = area.minZ(); z <= area.maxZ(); z++) {
-						long key = BlockPos.asLong(x, layer, z);
-						if (hidden.remove(key)) skipped.put(key, "out of sight");
-					}
-				}
-			}
-			layer--;
-			hiddenRounds = 0;
 		}
-		finish("Done: " + broken + " blocks dug" + (skipped.isEmpty() ? "" : ", " + leftAlone()));
+		return false;
 	}
 
-	/** "4 left alone (3 out of sight, 1 next to lava)". */
-	public String leftAlone() {
-		java.util.Map<String, Integer> by = new java.util.TreeMap<>();
-		for (String why : skipped.values()) by.merge(why, 1, Integer::sum);
-		StringBuilder sb = new StringBuilder();
-		for (var e : by.entrySet()) sb.append(sb.length() == 0 ? "" : ", ").append(e.getValue()).append(' ').append(e.getKey());
-		return skipped.size() + " left alone (" + sb + ")";
-	}
+	private int lowestNow() { return Math.max(area.minY(), layer - layers.asInt() + 1); }
 
-	private void begin(Minecraft mc, LocalPlayer p, BlockPos pos) {
-		target = pos;
-		digTicks = lookTicks = 0;
-		if (p.getEyePosition().distanceTo(Vec3.atCenterOf(pos)) > reach.get() - 0.2) {
-			if (!walker.start(PathWalker.posOf(pos), Math.max(2.0, reach.get() - 1.0))) {
-				giveUp(pos, walkTries++ < 2, "no way to walk there");
-				return;
-			}
-			state = State.WALK;
+	// main loop --------------------------------------------------------------------------------------------------
+
+	@Override
+	protected void onTick() {
+		Minecraft mc = Minecraft.getInstance();
+		LocalPlayer p = mc.player;
+		if (p == null || mc.level == null || mc.gameMode == null || area == null) {
+			setEnabled(false);
 			return;
 		}
-		walkTries = 0;
+		if (mc.screen != null) { // a menu is open: wait, and never keep a dig going behind it
+			stopDig(mc);
+			nav.releaseKeys();
+			return;
+		}
+		if (stopFull.get() && p.getInventory().getFreeSlot() < 0) {
+			finish("Inventory full after " + broken + " blocks");
+			return;
+		}
+		if (stopPlayer.get() > 0 && playerNear(mc, p)) {
+			finish("A player came close: stopped");
+			return;
+		}
+		nav.tick();
+		if (wait > 0) {
+			wait--;
+			return;
+		}
+		switch (state) {
+			case SCAN -> {
+				stopDig(mc);
+				if (!findLayer(mc)) {
+					finish("Done: " + broken + " blocks dug" + (skipped.isEmpty() ? "" : ", " + leftAlone()));
+					return;
+				}
+				BlockPos b = scan(mc, p);
+				if (b != null) begin(b);
+				else navigate(mc, p);
+			}
+			case NAV -> walking(mc, p);
+			case DIG -> dig(mc, p);
+		}
+	}
+
+	private void begin(BlockPos pos) {
+		target = pos;
+		digTicks = lookTicks = 0;
+		idleArrivals = navFails = 0;
 		state = State.DIG;
 	}
 
-	/** Leaves a block: for now (retried when the view changes) or for the rest of the run. */
-	private void giveUp(BlockPos pos, boolean retryLater, String why) {
-		if (retryLater) hidden.add(pos.asLong());
-		else skipped.put(pos.asLong(), why);
-		target = null;
-		state = State.PICK;
-	}
-
-	private void walk(Minecraft mc, LocalPlayer p) {
-		switch (walker.state()) {
-			case WALKING -> { }
-			case ARRIVED -> {
-				RotationController.clear();
-				walkTries = 0;
-				state = State.DIG;
-			}
-			default -> {
-				if (target != null) giveUp(target, walkTries++ < 2, "could not get close enough");
-				else state = State.PICK;
+	/** Every block of the working layers within reach that the eye can see; returns the one needing the smallest turn. */
+	private BlockPos scan(Minecraft mc, LocalPlayer p) {
+		Vec3 eye = p.getEyePosition();
+		double r = reach.get();
+		int span = (int) Math.ceil(r) + 1;
+		BlockPos c = BlockPos.containing(eye);
+		boolean haveWide = wideSlot(p) >= 0;
+		Rotation look = RotationController.current();
+		List<BlockPos> found = new ArrayList<>();
+		BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+		for (int y = Math.min(layer, c.getY() + span); y >= Math.max(lowestNow(), c.getY() - span); y--) {
+			for (int x = Math.max(area.minX(), c.getX() - span); x <= Math.min(area.maxX(), c.getX() + span); x++) {
+				for (int z = Math.max(area.minZ(), c.getZ() - span); z <= Math.min(area.maxZ(), c.getZ() + span); z++) {
+					m.set(x, y, z);
+					if (eye.distanceToSqr(x + 0.5, y + 0.5, z + 0.5) > (r + 0.9) * (r + 0.9) || !wanted(mc, m)) continue;
+					if (avoidDrops.get() && opensDrop(mc, p, m)) continue;
+					found.add(m.immutable());
+				}
 			}
 		}
+		// top layer first; with a 3x3 pickaxe the middle of a slab before its rim; then the smallest turn of the head
+		found.sort(Comparator.comparingInt((BlockPos b) -> -b.getY())
+			.thenComparingInt(b -> haveWide && !area.planeInside(b.getX(), b.getY(), b.getZ(), 1) ? 1 : 0)
+			.thenComparingDouble(b -> {
+				Rotation to = RotationController.rotationTo(eye, Vec3.atCenterOf(b));
+				return Math.hypot(Rotations.wrapDegrees(to.yaw() - look.yaw()), to.pitch() - look.pitch());
+			}));
+		for (BlockPos b : found) {
+			Vec3 point = Placer.visiblePoint(mc, p, b, eye, r);
+			if (point != null) {
+				digPoint = point;
+				return b;
+			}
+		}
+		return null;
+	}
+
+	// getting there ----------------------------------------------------------------------------------------------
+
+	/** The nearest blocks of the working layers still to dig (at most 48). */
+	private List<BlockPos> nearestWork(Minecraft mc, LocalPlayer p) {
+		List<BlockPos> all = new ArrayList<>();
+		BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+		for (int y = layer; y >= lowestNow(); y--) {
+			for (int x = area.minX(); x <= area.maxX(); x++) {
+				for (int z = area.minZ(); z <= area.maxZ(); z++) {
+					m.set(x, y, z);
+					if (!hidden.contains(m.asLong()) && wanted(mc, m)) all.add(m.immutable());
+				}
+			}
+		}
+		Vec3 at = p.position();
+		all.sort(Comparator.comparingDouble(b -> b.distToCenterSqr(at)));
+		return all.size() > 48 ? new ArrayList<>(all.subList(0, 48)) : all;
+	}
+
+	private void navigate(Minecraft mc, LocalPlayer p) {
+		frontier = nearestWork(mc, p);
+		if (frontier.isEmpty()) { // everything left in these layers had no way to it
+			if (!hidden.isEmpty() && hiddenRounds++ < 2) {
+				hidden.clear(); // one more try from where we are now
+				return;
+			}
+			BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+			for (long key : hidden) if (wanted(mc, m.set(key))) skipped.put(key, "out of reach");
+			hidden.clear();
+			hiddenRounds = 0;
+			return;
+		}
+		double r = reach.get();
+		WorkNavigator.Start s = nav.start(mc, frontier, r, p.getEyeHeight(), (feet, eye) -> {
+			for (BlockPos t : frontier) {
+				if (eye.distanceToSqr(Vec3.atCenterOf(t)) > (r + 0.9) * (r + 0.9)) continue;
+				if (Placer.visiblePoint(mc, p, t, eye, r) != null) return true;
+			}
+			return false;
+		}, false, key -> true);
+		switch (s) {
+			case OK -> {
+				notReady = 0;
+				navTicks = 0;
+				state = State.NAV;
+			}
+			case NOT_READY -> {
+				wait = 5;
+				if (++notReady > 20) {
+					notReady = 0;
+					for (BlockPos t : frontier) hidden.add(t.asLong());
+				}
+			}
+			case NO_ROUTE -> {
+				for (BlockPos t : frontier) hidden.add(t.asLong());
+			}
+		}
+	}
+
+	private void walking(Minecraft mc, LocalPlayer p) {
+		switch (nav.state()) {
+			case WALKING -> {
+				// whatever comes within reach and sight on the way gets dug on the way
+				if (++navTicks % 8 == 0 && p.onGround()) {
+					BlockPos b = scan(mc, p);
+					if (b != null) {
+						nav.cancel();
+						begin(b);
+					}
+				}
+			}
+			case ARRIVED -> {
+				RotationController.clear();
+				if (!nav.partial() && ++idleArrivals >= 3) { // arriving and still seeing nothing: do not come back forever
+					for (BlockPos t : frontier) hidden.add(t.asLong());
+					idleArrivals = 0;
+				}
+				nav.cancel();
+				state = State.SCAN;
+				wait = 2;
+			}
+			default -> {
+				if (++navFails >= 3) {
+					for (BlockPos t : frontier) hidden.add(t.asLong());
+					navFails = 0;
+				}
+				nav.cancel();
+				state = State.SCAN;
+				wait = 5;
+			}
+		}
+	}
+
+	// digging ----------------------------------------------------------------------------------------------------
+
+	private void leave(BlockPos pos, String why) {
+		skipped.put(pos.asLong(), why);
+		target = null;
+		state = State.SCAN;
 	}
 
 	private void dig(Minecraft mc, LocalPlayer p) {
 		if (target == null) {
-			state = State.PICK;
+			state = State.SCAN;
 			return;
 		}
 		if (!diggable(mc, target)) { // gone: we dug it, or a 3x3 hit took it
 			if (digging) broken++;
-			hidden.clear(); // the view changed: blocks that were out of sight get another try
+			hidden.clear(); // the view changed: blocks there was no way to get another try
 			hiddenRounds = 0;
 			stopDig(mc);
-			state = State.PICK;
+			state = State.SCAN;
 			return;
 		}
 		if (avoidDrops.get() && opensDrop(mc, p, target)) {
 			stopDig(mc);
-			giveUp(target, false, "a drop below it");
+			leave(target, "a drop below it");
 			return;
 		}
 		if (++digTicks > 600) {
 			stopDig(mc);
-			giveUp(target, false, "took too long to break");
+			leave(target, "took too long to break");
 			return;
 		}
-		if (p.getEyePosition().distanceTo(Vec3.atCenterOf(target)) > reach.get() + 0.3) { // we fell or were pushed away
+		if (p.getEyePosition().distanceTo(Vec3.atCenterOf(target)) > reach.get() + 1.2) { // we fell or were pushed away
 			stopDig(mc);
-			state = State.PICK;
+			state = State.SCAN;
 			return;
 		}
 		// it has to be the block under the crosshair before the first hit lands
 		if (!(mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK && bh.getBlockPos().equals(target))) {
 			stopDig(mc);
-			if (mc.hitResult instanceof BlockHitResult other && other.getType() == HitResult.Type.BLOCK && !RotationController.busy() && lookTicks > 6) {
-				BlockPos inWay = other.getBlockPos();
-				if (area.contains(inWay.getX(), inWay.getY(), inWay.getZ()) && diggable(mc, inWay) && !skipped.containsKey(inWay.asLong())
-					&& !(avoidLava.get() && touchesLava(mc, inWay))) {
-					target = inWay; // something else in the box is in front of it: take that first
-					digTicks = lookTicks = 0;
-					return;
-				}
-			}
-			if (++lookTicks > 40) {
-				giveUp(target, true, "");
+			if (++lookTicks > 45) { // lost sight of it: look at everything again
+				target = null;
+				state = State.SCAN;
 				return;
 			}
-			RotationController.aimAtPoint(Vec3.atCenterOf(target), 14f);
+			if (digPoint == null || (!RotationController.busy() && lookTicks % 10 == 0)) digPoint = Placer.visiblePoint(mc, p, target, p.getEyePosition(), reach.get() + 0.5);
+			if (digPoint != null) RotationController.aimAtPoint(digPoint, 14f);
 			return;
 		}
 		lookTicks = 0;
 		int slot = toolFor(mc, p, target, bh.getDirection().getAxis().ordinal());
 		if (slot < 0) {
-			edgeLeft++;
 			stopDig(mc);
-			giveUp(target, false, "on the edge, needs an ordinary pickaxe");
+			leave(target, "on the edge, needs an ordinary pickaxe");
 			return;
 		}
 		if (slot != p.getInventory().getSelectedSlot()) {

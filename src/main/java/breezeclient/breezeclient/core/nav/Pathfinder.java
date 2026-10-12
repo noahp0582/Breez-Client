@@ -40,8 +40,12 @@ public final class Pathfinder {
 		public static Options walking(int maxDrop) { return new Options(false, false, false, maxDrop, 1.0, 2.0); }
 	}
 
-	/** @param reachedGoal false when the node budget ran out; the steps then lead toward the closest point found */
-	public record Result(List<Step> steps, boolean reachedGoal) {}
+	/**
+	 * @param reachedGoal false when no way to the goal was found; the steps then lead toward the closest point found
+	 * @param outOfBudget true when the search stopped because it had looked at as many cells as it was allowed, so a way may
+	 *                    still exist; false with {@code reachedGoal} false means everything reachable was looked at
+	 */
+	public record Result(List<Step> steps, boolean reachedGoal, boolean outOfBudget) {}
 
 	private record Candidate(Pos to, Move move, double cost, List<Pos> breaks) {}
 
@@ -65,7 +69,7 @@ public final class Pathfinder {
 	/** @return null when the start cell is not standable; otherwise the path (possibly partial) */
 	public static Result search(World w, Pos start, Goal goal, Options o, int maxNodes) {
 		if (!standable(w, start.x(), start.y(), start.z())) return null;
-		if (goal.isEnd(start)) return new Result(List.of(), true);
+		if (goal.isEnd(start)) return new Result(List.of(), true, false);
 		PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.f(), b.f()));
 		Map<Pos, Double> best = new HashMap<>();
 		Map<Pos, Edge> from = new HashMap<>();
@@ -80,7 +84,7 @@ public final class Pathfinder {
 			Node n = open.poll();
 			if (!closed.add(n.pos())) continue;
 			expanded++;
-			if (goal.isEnd(n.pos())) return new Result(rebuild(from, n.pos(), start), true);
+			if (goal.isEnd(n.pos())) return new Result(rebuild(from, n.pos(), start), true, false);
 			double h = n.f() - n.g();
 			if (h < bestH - 1e-9) {
 				bestH = h;
@@ -97,8 +101,9 @@ public final class Pathfinder {
 				}
 			}
 		}
-		if (bestPos.equals(start) || bestH > startH - 1.0) return new Result(List.of(), false);
-		return new Result(rebuild(from, bestPos, start), false);
+		boolean spent = expanded >= maxNodes;
+		if (bestPos.equals(start) || bestH > startH - 1.0) return new Result(List.of(), false, spent);
+		return new Result(rebuild(from, bestPos, start), false, spent);
 	}
 
 	// moves ----------------------------------------------------------------------------------------------------------
