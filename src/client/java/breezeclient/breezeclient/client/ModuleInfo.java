@@ -49,6 +49,7 @@ public final class ModuleInfo {
 		d("ChestLooter", Detection.USE_AT_RISK);
 		d("Baritone", Detection.USE_AT_RISK);
 		d("AntiTrap", Detection.USE_AT_RISK);
+		d("AutoShield", Detection.USE_AT_RISK);
 		d("AutoDig", Detection.USE_AT_RISK);
 		d("ItemDropper", Detection.USE_AT_RISK);
 		d("AutoSell", Detection.USE_AT_RISK);
@@ -114,7 +115,7 @@ public final class ModuleInfo {
 		m("BlockESP", "Highlights any blocks you choose through walls. Edit the list in the settings or with .blockesp.");
 		m("OreFinder", "Highlights the ores the server has actually sent you, including ancient debris.");
 		m("SeedOres", "Predicts where ores and ancient debris generated using the world seed, even when anti-xray hides them. Set the seed in the Profiles tab.");
-		m("SusChunks", "Finds player bases by specific signatures (spawner stacks, spawners with hoppers, hopper storage, big storage rooms, ender chests, beacons) and ignores villages, mineshafts, dungeons and other natural structures.");
+		m("SusChunks", "Finds player bases by specific signatures (spawner stacks, spawners with hoppers, hopper storage, big storage rooms, ender chests, beacons), griefed or raided bases (TNT left behind, fire, obsidian piles, workstations with every chest gone) and lavacasts. Ignores villages, mineshafts, dungeons and other natural structures, ranks finds that touch each other higher, and outlines the whole chunk.");
 		m("PlayerESP", "Boxes, tracers and through-walls nametags with health and distance for other players.");
 		m("Freecam", "Detaches the camera so you can look around while your character stands still.");
 		m("Fullbright", "Maximum brightness everywhere (local night vision; nothing is sent to the server).");
@@ -132,6 +133,7 @@ public final class ModuleInfo {
 		m("AutoDoubleHand", "When your health runs low and a totem is in the offhand, also holds a totem in the main hand so one pop never leaves you empty-handed.");
 		m("AutoInvTotem", "While your inventory is open, moves a totem into the offhand (and optionally a hotbar slot) with ordinary clicks.");
 		m("TotemOffhand", "Puts a hotbar totem into the offhand with the swap-hands action when the offhand empties, then returns to your slot.");
+		m("AutoShield", "Raises a shield when an end crystal is close, or a nearby player is holding crystals or an anchor: swaps a hotbar shield into the offhand, faces the danger and blocks until it has passed, then puts things back. An offhand totem stays where it is unless you allow the swap.");
 		m("AutoJumpReset", "Jumps the tick you take a hit while on the ground, so some of the knockback becomes upward motion.");
 		m("NoHitDelay", "Removes the ten-tick pause vanilla puts on your attack button after swinging at nothing.");
 		m("CrystalOptimizer", "Removes an end crystal from your screen the moment you hit it, so you can place and target the next one without waiting for the server.");

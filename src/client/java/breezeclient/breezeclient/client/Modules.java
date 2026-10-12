@@ -123,6 +123,7 @@ public final class Modules {
 		m.register(new DefenseModules.AutoInvTotem());
 		m.register(new DefenseModules.TotemOffhand());
 		m.register(new DefenseModules.AutoJumpReset());
+		m.register(new breezeclient.breezeclient.client.modules.AutoShield());
 		m.register(new CombatTweaks.NoHitDelay());
 		m.register(new CombatTweaks.CrystalOptimizer());
 		CombatTweaks.CrystalOptimizer.registerEvents();

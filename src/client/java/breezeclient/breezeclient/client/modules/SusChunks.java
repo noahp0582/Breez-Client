@@ -56,7 +56,7 @@ public class SusChunks extends Module {
 	private final EnumSetting<Mode> mode = add(new EnumSetting<>("Mode", Mode.SIGNATURES), "Detection",
 		"SIGNATURES looks for specific base features and skips natural structures. WEIGHTED adds up block weights per chunk (old behavior).");
 	private final EnumSetting<BaseSignatures.Preset> preset = add(new EnumSetting<>("Looking for", BaseSignatures.Preset.SPAWNER_BASES), "Detection",
-		"SPAWNER_BASES: spawner stacks and farms, hopper storage, ender chests, beacons. ALL_BASES adds big storage rooms and redstone. STORAGE, FARMS and CUSTOM are narrower or hand-picked.",
+		"SPAWNER_BASES: spawner stacks and farms, hopper storage, ender chests, beacons, plus griefed bases and lavacasts. ALL_BASES adds big storage rooms and redstone. GRIEFED shows only wrecked or raided bases and lavacasts. STORAGE, FARMS and CUSTOM are narrower or hand-picked.",
 		() -> mode.get() == Mode.SIGNATURES);
 	private final Map<Signature, BoolSetting> custom = new java.util.EnumMap<>(Signature.class);
 	private final NumberSetting minStack = add(new NumberSetting("Min spawners in a stack", 3, 2, 20), "Detection",
@@ -89,6 +89,8 @@ public class SusChunks extends Module {
 		"Only the highest scoring chunks are drawn, so a busy area does not fill the screen.");
 	private final BoolSetting fillChunk = add(new BoolSetting("Fill chunk", true), "Display",
 		"Tint the whole flagged chunk. Chunks run from green (weakest find) to red (strongest) as their score rises.");
+	private final BoolSetting tallOutline = add(new BoolSetting("Outline the whole chunk", true), "Display",
+		"Draws the border of a flagged chunk as a tall frame with a ring at your own height, so you can see which chunk it is from any distance and from inside it. Off: only a short column around what was found.");
 	private final BoolSetting notify = add(new BoolSetting("Notify", true), "Alerts", "Pop-up the first time a chunk is flagged.");
 	private final BoolSetting waypoint = add(new BoolSetting("Waypoint", false), "Alerts", "Save a waypoint for each flagged chunk.");
 
@@ -130,6 +132,21 @@ public class SusChunks extends Module {
 		return copy.subList(0, Math.min(n, copy.size()));
 	}
 
+	/** What the last pass knew about one chunk: its scanned blocks and which chunks around it look natural (for the self-test). */
+	public static String describe(int cx, int cz) {
+		if (instance == null) return "off";
+		StringBuilder sb = new StringBuilder();
+		Snapshot s = instance.snapshots.get(ChunkPos.asLong(cx, cz));
+		if (s == null) return "no scanned blocks in " + cx + "," + cz + " (" + instance.snapshots.size() + " chunks known)";
+		for (var e : s.byId().entrySet()) sb.append(e.getKey().replace("minecraft:", "")).append("x").append(e.getValue().size()).append(' ');
+		sb.append("| natural around:");
+		for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
+			Snapshot n = instance.snapshots.get(ChunkPos.asLong(cx + dx, cz + dz));
+			if (n != null && n.natural()) sb.append(" ").append(dx).append(",").append(dz).append(n.big() ? "(big)" : "");
+		}
+		return sb.toString();
+	}
+
 	public static void resetAnnounced() {
 		if (instance != null) instance.announced.clear();
 	}
@@ -142,6 +159,10 @@ public class SusChunks extends Module {
 		Set<Block> blocks = new HashSet<>();
 		if (appliedSignatures) {
 			for (String id : BaseSignatures.scanIds()) {
+				Block b = BlockIds.parse(id);
+				if (b != null) blocks.add(b);
+			}
+			for (String id : breezeclient.breezeclient.core.sus.GriefSignatures.scanIds()) {
 				Block b = BlockIds.parse(id);
 				if (b != null) blocks.add(b);
 			}
@@ -364,6 +385,7 @@ public class SusChunks extends Module {
 				}
 				findings.addAll(BaseSignatures.evaluateEntities(merged, nearNatural, cx, cz));
 			}
+			findings.addAll(breezeclient.breezeclient.core.sus.GriefSignatures.evaluate(own, nearNatural, level.dimension() == net.minecraft.world.level.Level.NETHER, enabled, level.getSeaLevel()));
 			if (enabled.contains(Signature.TUNNEL) && !nearNatural) {
 				List<TunnelFinder.Run> runs = TunnelFinder.runsIn(cx, cz);
 				if (!runs.isEmpty()) {
@@ -397,8 +419,23 @@ public class SusChunks extends Module {
 				if (waypoint.get()) Waypoints.add("Base: " + best.signature().label(), c);
 			}
 		}
+		Set<Long> flagged = new HashSet<>();
+		for (Result r : fresh) flagged.add(ChunkPos.asLong(r.chunkX(), r.chunkZ()));
 		results.clear();
-		results.addAll(fresh);
+		for (Result r : fresh) {
+			int touching = 0;
+			for (int dx = -1; dx <= 1; dx++) {
+				for (int dz = -1; dz <= 1; dz++) {
+					if ((dx != 0 || dz != 0) && flagged.contains(ChunkPos.asLong(r.chunkX() + dx, r.chunkZ() + dz))) touching++;
+				}
+			}
+			if (touching == 0) {
+				results.add(r);
+			} else {
+				double boost = 1 + 0.1 * Math.min(3, touching);
+				results.add(new Result(r.chunkX(), r.chunkZ(), r.score() * boost, r.min(), r.max(), r.label() + " [" + (touching + 1) + " flagged chunks together]", r.all()));
+			}
+		}
 	}
 
 	@Override
@@ -428,6 +465,14 @@ public class SusChunks extends Module {
 			double x0 = res.chunkX() * 16.0, z0 = res.chunkZ() * 16.0;
 			double y0 = res.min().getY() - 1, y1 = Math.max(res.max().getY() + 2, y0 + 8);
 			f.drawBox(x0, y0, z0, x0 + 16, y1, z0 + 16, color);
+			if (tallOutline.get()) {
+				// the chunk's border from well below to well above both the find and you, and a ring at your feet
+				double py = mc.player.getY();
+				double lo = Math.min(y0, py - 6), hi = Math.max(y1, py + 28);
+				f.drawBox(x0, lo, z0, x0 + 16, hi, z0 + 16, color);
+				f.drawBox(x0, py, z0, x0 + 16, py + 0.05, z0 + 16, color);
+				f.drawBox(x0 + 0.1, py + 2, z0 + 0.1, x0 + 15.9, py + 2.05, z0 + 15.9, (color & 0xFFFFFF) | 0x90000000);
+			}
 			if (fill) ((RenderUtil) f).drawFilledBox(x0, y0, z0, x0 + 16, y1, z0 + 16, (color & 0xFFFFFF) | 0x30000000);
 			// and the exact spot inside it
 			f.drawBox(res.min().getX() - 1, res.min().getY() - 1, res.min().getZ() - 1, res.max().getX() + 2, res.max().getY() + 2, res.max().getZ() + 2, color);

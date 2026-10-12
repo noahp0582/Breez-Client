@@ -34,7 +34,9 @@ public final class BaseSignatures {
 		BUILDING_BLOCKS("Player building blocks", true),
 		ACTIVITY("Lit furnace or campfire", true),
 		ENTITY_CLUSTER("Entity cluster", false),
-		TUNNEL("Straight tunnel", true);
+		TUNNEL("Straight tunnel", true),
+		GRIEFED("Griefed or raided base", true),
+		LAVACAST("Lavacast", false);
 
 		private final String label;
 		private final boolean weak;
@@ -58,17 +60,18 @@ public final class BaseSignatures {
 	private static final double HOPPER_LINK = 6;
 
 	public enum Preset {
-		SPAWNER_BASES, ALL_BASES, STORAGE, FARMS, CUSTOM;
+		SPAWNER_BASES, ALL_BASES, STORAGE, FARMS, GRIEFED, CUSTOM;
 
 		public Set<Signature> signatures() {
 			return switch (this) {
 				case SPAWNER_BASES -> EnumSet.of(Signature.SPAWNER_STACK, Signature.SPAWNER_FARM, Signature.LONE_SPAWNER,
 					Signature.HOPPER_STORAGE, Signature.ENDER_CHEST, Signature.VALUABLES, Signature.BUILDING_BLOCKS,
-					Signature.ACTIVITY, Signature.ENTITY_CLUSTER, Signature.TUNNEL);
+					Signature.ACTIVITY, Signature.ENTITY_CLUSTER, Signature.TUNNEL, Signature.GRIEFED, Signature.LAVACAST);
 				case ALL_BASES -> EnumSet.allOf(Signature.class);
 				case STORAGE -> EnumSet.of(Signature.STORAGE_ROOM, Signature.HOPPER_STORAGE, Signature.ENDER_CHEST, Signature.VALUABLES);
 				case FARMS -> EnumSet.of(Signature.SPAWNER_STACK, Signature.SPAWNER_FARM, Signature.HOPPER_STORAGE, Signature.REDSTONE,
 					Signature.ENTITY_CLUSTER, Signature.ACTIVITY);
+				case GRIEFED -> EnumSet.of(Signature.GRIEFED, Signature.LAVACAST);
 				case CUSTOM -> EnumSet.noneOf(Signature.class);
 			};
 		}

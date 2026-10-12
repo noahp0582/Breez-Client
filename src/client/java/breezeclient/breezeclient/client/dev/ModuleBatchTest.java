@@ -116,6 +116,7 @@ public final class ModuleBatchTest {
 		// build the platform first and only then stand on it: a player inside a fill suffocates
 		at(20, () -> {
 			cmd("gamemode survival @a");
+			cmd("effect clear @a"); // another self-test may have left resistance on, which would swallow the damage checks
 			cmd("clear @a");
 			cmd("fill -6 145 -6 6 149 6 minecraft:stone");
 			cmd("fill -6 150 -6 6 153 6 minecraft:air");
@@ -358,6 +359,11 @@ public final class ModuleBatchTest {
 			for (int i = 0; i < 3; i++) cmd("setblock " + (200 + i) + " 100 200 minecraft:spawner");
 			for (int i = 0; i < 4; i++) cmd("setblock " + (200 + i) + " 100 204 minecraft:stone");
 			for (int i = 0; i < 2; i++) cmd("setblock " + (200 + i) + " 100 208 minecraft:hopper");
+			// a stripped, TNT-ed base in the same chunk (the next one over is outside the view distance once we go back), for SusChunks: workstations, no chest, TNT left behind
+			cmd("fill 196 100 194 198 100 194 minecraft:furnace");
+			cmd("setblock 196 100 196 minecraft:crafting_table");
+			cmd("setblock 197 100 196 minecraft:enchanting_table");
+			cmd("fill 196 101 198 197 101 198 minecraft:tnt");
 		});
 		at(610, () -> {
 			for (int i = 0; i < 4; i++) cmd("setblock " + (200 + i) + " 101 204 minecraft:torch");
@@ -370,6 +376,9 @@ public final class ModuleBatchTest {
 			on("ChunkFinder");
 			on("LightFinder");
 			on("SuspiciousESP");
+			set("SusChunks", "Ignore chunks within", 0.0);
+			set("SusChunks", "Ignore natural structures", false); // this test chunk sits on a trial chamber and a mineshaft
+			on("SusChunks");
 		});
 		at(840, () -> {
 			check("ChunkFinder flags a chunk with 3 spawners", !breezeclient.breezeclient.client.modules.DonutModules.ChunkFinder.top(5).isEmpty(), "info " + mod("ChunkFinder").info());
@@ -378,6 +387,14 @@ public final class ModuleBatchTest {
 			off("ChunkFinder");
 			off("LightFinder");
 			off("SuspiciousESP");
+			boolean griefed = false;
+			StringBuilder sus = new StringBuilder();
+			for (var r : breezeclient.breezeclient.client.modules.SusChunks.top(20)) {
+				sus.append('[').append(r.chunkX()).append(',').append(r.chunkZ()).append(' ').append(r.label()).append("] ");
+				if (r.chunkX() == 12 && r.chunkZ() == 12) for (String f : r.all()) griefed |= f.contains("Griefed");
+			}
+			check("SusChunks flags the stripped base with TNT as griefed", griefed, sus + " || " + breezeclient.breezeclient.client.modules.SusChunks.describe(12, 12));
+			off("SusChunks");
 		});
 
 		// AutoHitCrystal (creative, so the blast cannot hurt)
@@ -418,6 +435,29 @@ public final class ModuleBatchTest {
 			check("AutoSpawnerSell presses the sell button", "1".equals(mod("AutoSpawnerSell").info()), "info '" + mod("AutoSpawnerSell").info() + "'");
 			check("AutoSpawnerSell closes the window", mc().screen == null, "screen " + mc().screen);
 			off("AutoSpawnerSell");
+		});
+
+		// AutoShield: a crystal next to us, a shield in the hotbar, nothing in the offhand
+		at(870, () -> {
+			give("weapon.offhand", "minecraft:air");
+			give("hotbar.3", "minecraft:shield");
+			mc().player.getInventory().setSelectedSlot(0);
+			cmd("summon minecraft:end_crystal -0.5 150 -3.5");
+			on("AutoShield");
+		});
+		at(905, () -> {
+			var p = mc().player;
+			check("AutoShield moves the shield to the offhand", p.getOffhandItem().is(Items.SHIELD), "offhand " + p.getOffhandItem());
+			check("AutoShield blocks with it", p.isUsingItem() && p.getUseItem().is(Items.SHIELD), "using " + p.isUsingItem() + " " + p.getUseItem());
+			check("AutoShield returns to the held slot", slot() == 0, "slot " + slot());
+			cmd("kill @e[type=minecraft:end_crystal]");
+		});
+		at(960, () -> {
+			var p = mc().player;
+			check("AutoShield lowers the shield when the crystal is gone", !p.isUsingItem(), "using " + p.isUsingItem());
+			check("AutoShield puts the shield back in the hotbar", !p.getOffhandItem().is(Items.SHIELD) && p.getInventory().getItem(3).is(Items.SHIELD),
+				"offhand " + p.getOffhandItem() + ", slot 4 " + p.getInventory().getItem(3));
+			off("AutoShield");
 		});
 
 		// ProxyRelay against a tiny local SOCKS5 server, and the radio decoder against a live stream
