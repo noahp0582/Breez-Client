@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.mixin;
 
+import breezeclient.breezeclient.client.Modules;
 import breezeclient.breezeclient.client.modules.Freecam;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,9 +17,16 @@ public abstract class MinecraftMixin {
 		if (Freecam.active()) cir.setReturnValue(false);
 	}
 
+	/** Also swallows the right-clicks AutoDig uses to mark its corners. */
 	@Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
 	private void breez$noUse(CallbackInfo ci) {
 		if (Freecam.active()) ci.cancel();
+		else if (Modules.digger != null && Modules.digger.onUseClick((Minecraft) (Object) this)) ci.cancel();
+	}
+
+	@Inject(method = "handleKeybinds", at = @At("HEAD"))
+	private void breez$keybinds(CallbackInfo ci) {
+		if (Modules.digger != null) Modules.digger.useKeyState(((Minecraft) (Object) this).options.keyUse.isDown());
 	}
 
 	@Inject(method = "pickBlock", at = @At("HEAD"), cancellable = true)

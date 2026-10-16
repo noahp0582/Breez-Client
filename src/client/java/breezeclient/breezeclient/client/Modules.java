@@ -460,11 +460,12 @@ public final class Modules {
 		});
 		c.register(new Command() {
 			public String name() { return "dig"; }
-			public String usage() { return "dig <pos1|pos2|start|stop|clear|status>"; }
+			public String usage() { return "dig <mark|pos1|pos2|start|stop|clear|status>"; }
 			public void run(String[] a, Consumer<String> reply) {
 				var mc = net.minecraft.client.Minecraft.getInstance();
 				String sub = a.length == 0 ? "status" : a[0].toLowerCase();
 				switch (sub) {
+					case "mark" -> digger.toggleMarking();
 					case "pos1", "pos2" -> {
 						if (mc.player == null) { reply.accept("Join a world first."); return; }
 						net.minecraft.core.BlockPos at = mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult bh && bh.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK

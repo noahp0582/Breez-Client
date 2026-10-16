@@ -80,6 +80,7 @@ public final class ModuleActions {
 		}
 
 		if ((m = mm.get("AutoDig")) != null) {
+			act(m, "Mark corners with right-click", "Then right-click one corner block and the opposite one. Those clicks place and open nothing and are never sent. Click again to stop. Same as .dig mark.", "dig mark");
 			act(m, "Set corner 1 to the block I look at", "Look at one corner of the area, then click. Same as .dig pos1.", "dig pos1");
 			act(m, "Set corner 2 to the block I look at", "Look at the opposite corner, then click. Same as .dig pos2.", "dig pos2");
 			act(m, "Start digging", "Same as .dig start.", "dig start");

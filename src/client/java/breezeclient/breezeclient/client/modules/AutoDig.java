@@ -53,7 +53,7 @@ public class AutoDig extends Module {
 
 	private enum State { SCAN, NAV, DIG }
 
-	private final StringSetting corner1 = add(new StringSetting("Corner 1 (x y z)", ""), "Area", "One corner of the box to clear. Use the button below or .dig pos1 while looking at a block.");
+	private final StringSetting corner1 = add(new StringSetting("Corner 1 (x y z)", ""), "Area", "One corner of the box to clear. Use Mark corners with right-click below, or .dig pos1 while looking at a block.");
 	private final StringSetting corner2 = add(new StringSetting("Corner 2 (x y z)", ""), "Area", "The opposite corner. Use the button below or .dig pos2.");
 	private final ColorSetting color = add(new ColorSetting("Outline color", 0xFFFFAA33), "Area", "Color of the box drawn around the area.");
 	private final NumberSetting reach = add(new NumberSetting("Reach", 4.2, 3.0, 4.5), "Digging", "How far away it digs a block from.");
@@ -116,6 +116,51 @@ public class AutoDig extends Module {
 		corner2.set("");
 	}
 
+	/** Which corner the next right-click on a block sets: 1 or 2, or 0 when not marking. */
+	private int marking;
+	/** The use key has been let go since the last marked corner, so holding it does not mark both at once. */
+	private boolean useReleased = true;
+
+	public boolean marking() { return marking != 0; }
+
+	/** Starts right-click marking (corner 1, then corner 2), or stops it when it is already on. */
+	public void toggleMarking() {
+		if (marking != 0) {
+			marking = 0;
+			Toasts.show("AutoDig", "Stopped marking corners.");
+			return;
+		}
+		if (enabled()) setEnabled(false);
+		marking = 1;
+		Toasts.show("AutoDig", "Right-click the first corner block.");
+	}
+
+	/** Called at the start of every keybind pass with the state of the use key. */
+	public void useKeyState(boolean down) {
+		if (!down) useReleased = true;
+	}
+
+	/**
+	 * A right-click while marking: sets the next corner to the block under the crosshair. Returns true when the click was
+	 * taken, so the game neither places nor opens anything and nothing is sent to the server.
+	 */
+	public boolean onUseClick(Minecraft mc) {
+		if (marking == 0 || mc.player == null) return false;
+		if (!(mc.hitResult instanceof BlockHitResult bh) || bh.getType() != HitResult.Type.BLOCK) return false;
+		if (!useReleased) return true; // the same press repeating while held
+		useReleased = false;
+		BlockPos at = bh.getBlockPos();
+		setCorner(marking, at);
+		if (marking == 1) {
+			marking = 2;
+			Toasts.show("AutoDig", "Corner 1 set to " + at.toShortString() + ". Right-click the opposite corner.");
+		} else {
+			marking = 0;
+			Toasts.show("AutoDig", "Corner 2 set to " + at.toShortString() + ". " + status());
+		}
+		return true;
+	}
+
 	/** The marked box, or null while a corner is missing or unreadable. */
 	public DigArea area() {
 		int[] a = DigArea.parseCorner(corner1.get()), b = DigArea.parseCorner(corner2.get());
@@ -125,7 +170,7 @@ public class AutoDig extends Module {
 
 	public String status() {
 		DigArea a = area();
-		if (a == null) return "No area yet. Look at a block and use .dig pos1, then .dig pos2 at the opposite corner.";
+		if (a == null) return "No area yet. Use Mark corners with right-click (or .dig mark), then right-click two opposite corners.";
 		String size = a.sizeX() + "x" + a.sizeY() + "x" + a.sizeZ();
 		if (!enabled()) return "Area " + size + " (" + a.volume() + " blocks). .dig start to begin." + (lastResult.isEmpty() ? "" : " Last run: " + lastResult);
 		return "Area " + size + ": " + broken + " dug, layer y=" + layer + (skipped.isEmpty() ? "" : ", " + leftAlone());
