@@ -54,6 +54,43 @@ class AimAssistMathTest {
 	}
 
 	@Test
+	void perFrameFractionsAddUpToOneTick() {
+		double perTick = 0.14;
+		double left = 1;
+		for (int i = 0; i < 7; i++) left *= 1 - AimAssistMath.perFrame(perTick, 20.0 / 140); // 7 frames at 140 fps = 1 tick
+		assertEquals(1 - perTick, left, 1e-9);
+		assertEquals(0.0, AimAssistMath.perFrame(perTick, 0), 1e-12);
+	}
+
+	@Test
+	void subStepMovementsAccumulateIntoWholeSteps() {
+		float q = 0.15f;
+		float[] carry = {0f};
+		float moved = 0f;
+		for (int i = 0; i < 10; i++) {
+			float out = AimAssistMath.quantize(0.05f, 100f, q, carry);
+			assertEquals(0f, Math.abs(out / q - Math.round(out / q)), 1e-3);
+			moved += out;
+		}
+		assertEquals(0.45f, moved, 1e-3); // 0.5 wanted, 0.05 still in the carry
+		assertEquals(0f, AimAssistMath.quantize(0.3f, 0.1f, q, carry), 1e-6); // would pass the target
+	}
+
+	@Test
+	void frameStepsMoveAboutAsFarAsTickSteps() {
+		// one tick's worth of frames should land close to a single tick step
+		float yaw = 0f;
+		float[] carry = {0f};
+		double dt = 20.0 / 144;
+		for (int i = 0; i < 144 / 20; i++) {
+			Delta d = AimAssistMath.step(yaw, 0f, 20f, 0f, AimAssistMath.perFrame(0.14, dt), (float) (2.5 * dt), 1.2f, 0.4f, 0f);
+			yaw += AimAssistMath.quantize(d.yaw(), 20f - yaw, 0.15f, carry);
+		}
+		Delta tick = AimAssistMath.step(0f, 0f, 20f, 0f, 0.14, 2.5f, 1.2f, 0.4f, 0f);
+		assertEquals(tick.yaw(), yaw, 0.4f);
+	}
+
+	@Test
 	void neverOvershootsAndConvergesWithoutOscillating() {
 		float yaw = 0f, pitch = 0f;
 		float prevErr = Float.MAX_VALUE;

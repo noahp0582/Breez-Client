@@ -20,6 +20,7 @@ public abstract class MouseHandlerMixin {
 	@Inject(method = "handleAccumulatedMovement", at = @At("TAIL"))
 	private void breez$frame(CallbackInfo ci) {
 		breezeclient.breezeclient.client.humanize.RotationController.frame();
+		breezeclient.breezeclient.client.modules.AimAssist.frame();
 	}
 
 	@Inject(method = "onScroll", at = @At("HEAD"))

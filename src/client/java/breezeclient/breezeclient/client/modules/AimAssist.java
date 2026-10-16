@@ -18,10 +18,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 
 /**
- * Nudges your aim toward the target nearest your crosshair. It adds a small correction each tick (a fraction of the angle
- * left, capped, faded out near the crosshair) on top of what your mouse does, so you stay in control and it never snaps.
+ * Nudges your aim toward the target nearest your crosshair. It adds a small correction (a fraction of the angle left,
+ * capped, faded out near the crosshair) on top of what your mouse does, so you stay in control and it never snaps.
+ * The target is picked each tick; the camera moves every rendered frame so the pull is smooth at any frame rate.
  */
 public class AimAssist extends Module {
 	private final NumberSetting range = add(new NumberSetting("Range", 4.5, 2, 8), "Targeting", "Maximum distance to a target.");
@@ -38,20 +40,37 @@ public class AimAssist extends Module {
 		"No assist this close to the target, so it never fights you for the last bit.");
 	private final NumberSetting vertical = add(new NumberSetting("Vertical assist (%)", 40, 0, 100), "Feel", "Strength of the up/down correction; vertical pulls feel worse than sideways.");
 	private final BoolSetting onlyAttacking = add(new BoolSetting("Only while holding attack", true), "Feel", "Assist only while the attack button is down.");
-	private final BoolSetting onlyMoving = add(new BoolSetting("Only while I move the mouse", false), "Feel", "Assist only on ticks where you turned the camera yourself.");
+	private final BoolSetting onlyMoving = add(new BoolSetting("Only while I move the mouse", false), "Feel", "Assist only while you are turning the camera yourself.");
 	private final BoolSetting weaponOnly = add(new BoolSetting("Only with a weapon", true), "Feel", "Assist only while holding a sword, axe, mace or trident.");
 	private final BoolSetting aimChest = add(new BoolSetting("Aim at chest", true), "Feel", "Aim at the chest instead of the eyes.");
+
+	/** How long after your own mouse movement "Only while I move the mouse" keeps assisting. */
+	private static final long USER_TURN_GRACE_NANOS = 150_000_000L;
+	/** Longest frame we act on, in ticks; a hitch should not turn into one big jump. */
+	private static final double MAX_FRAME_TICKS = 2.0;
+	private static AimAssist instance;
 
 	private LivingEntity current;
 	private boolean haveExpected;
 	private float expectedYaw, expectedPitch;
+	private long lastFrame, lastUserTurn;
+	private final float[] yawCarry = {0f}, pitchCarry = {0f};
 
-	public AimAssist() { super("AimAssist", Category.COMBAT); }
+	public AimAssist() {
+		super("AimAssist", Category.COMBAT);
+		instance = this;
+	}
 
 	@Override
 	protected void onDisable() {
+		reset();
+	}
+
+	private void reset() {
 		current = null;
 		haveExpected = false;
+		lastFrame = 0;
+		yawCarry[0] = pitchCarry[0] = 0f;
 	}
 
 	private static boolean weapon(ItemStack s) {
@@ -71,23 +90,22 @@ public class AimAssist extends Module {
 		return true;
 	}
 
+	/** Assist only applies when this holds; checked on ticks (to pick a target) and on frames (to turn). */
+	private boolean gatesOpen(Minecraft mc, LocalPlayer p) {
+		if (p == null || mc.level == null || mc.screen != null || mc.isPaused() || mc.getCameraEntity() != p) return false;
+		if (onlyAttacking.get() && !mc.options.keyAttack.isDown()) return false;
+		return !weaponOnly.get() || weapon(p.getMainHandItem());
+	}
+
+	/** Target selection runs twenty times a second; the camera itself moves in {@link #frame()}. */
 	@Override
 	protected void onTick() {
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer p = mc.player;
-		if (p == null || mc.level == null || mc.screen != null || mc.getCameraEntity() != p) return;
-		if (onlyAttacking.get() && !mc.options.keyAttack.isDown()) {
-			current = null;
-			haveExpected = false;
+		if (!gatesOpen(mc, p)) {
+			reset();
 			return;
 		}
-		if (weaponOnly.get() && !weapon(p.getMainHandItem())) return;
-
-		// did the player turn the camera themselves since our last correction?
-		boolean userMoved = !haveExpected
-			|| Math.abs(Rotations.wrapDegrees(p.getYRot() - expectedYaw)) > 0.05f || Math.abs(p.getXRot() - expectedPitch) > 0.05f;
-		haveExpected = false;
-		if (onlyMoving.get() && !userMoved) return;
 
 		// keep the current target while it stays reasonable, so the assist does not flip between two players
 		if (current != null) {
@@ -106,21 +124,59 @@ public class AimAssist extends Module {
 				}
 			}
 		}
-		if (current == null) return;
-		// already on target: leave the camera alone
-		if (mc.hitResult instanceof EntityHitResult eh && eh.getEntity() == current) return;
+	}
 
-		var point = aimChest.get() ? CombatUtil.aimPoint(current) : current.getEyePosition();
-		Rotation want = RotationController.rotationTo(p.getEyePosition(), point);
-		float q = Rotations.quantum(mc.options.sensitivity().get());
-		AimAssistMath.Delta d = AimAssistMath.step(p.getYRot(), p.getXRot(), want.yaw(), want.pitch(), smoothing.get() / 100.0,
-			maxSpeed.asFloat(), deadZone.asFloat(), vertical.asFloat() / 100f, q);
-		if (!d.isZero()) {
-			p.setYRot(p.getYRot() + d.yaw());
-			p.setXRot(Math.max(-90f, Math.min(90f, p.getXRot() + d.pitch())));
+	/** Called once per rendered frame, right after the game has applied the real mouse. */
+	public static void frame() {
+		AimAssist a = instance;
+		if (a != null && a.enabled()) a.onFrame();
+	}
+
+	private void onFrame() {
+		long now = System.nanoTime();
+		double dtTicks = lastFrame == 0 ? 0 : Math.min(MAX_FRAME_TICKS, (now - lastFrame) / 50_000_000.0);
+		lastFrame = now;
+
+		Minecraft mc = Minecraft.getInstance();
+		LocalPlayer p = mc.player;
+		if (!gatesOpen(mc, p) || RotationController.busy()) {
+			haveExpected = false;
+			return;
+		}
+
+		// did the player turn the camera themselves since our last frame?
+		if (!haveExpected || Math.abs(Rotations.wrapDegrees(p.getYRot() - expectedYaw)) > 0.01f
+			|| Math.abs(p.getXRot() - expectedPitch) > 0.01f) {
+			lastUserTurn = now;
 		}
 		expectedYaw = p.getYRot();
 		expectedPitch = p.getXRot();
 		haveExpected = true;
+
+		LivingEntity t = current;
+		if (t == null || dtTicks <= 0) return;
+		if (onlyMoving.get() && now - lastUserTurn > USER_TURN_GRACE_NANOS) return;
+		// already on target: leave the camera alone
+		if (mc.hitResult instanceof EntityHitResult eh && eh.getEntity() == t) return;
+
+		// aim where the target is drawn this frame, not where it was on the last tick
+		float pt = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+		Vec3 pos = t.getPosition(pt);
+		double h = aimChest.get() ? t.getBbHeight() * 0.65 : t.getEyeHeight();
+		Rotation want = RotationController.rotationTo(p.getEyePosition(pt), pos.add(0, h, 0));
+
+		float yawErr = Rotations.wrapDegrees(want.yaw() - p.getYRot());
+		float pitchErr = want.pitch() - p.getXRot();
+		AimAssistMath.Delta d = AimAssistMath.step(p.getYRot(), p.getXRot(), want.yaw(), want.pitch(),
+			AimAssistMath.perFrame(smoothing.get() / 100.0, dtTicks), (float) (maxSpeed.get() * dtTicks), deadZone.asFloat(),
+			vertical.asFloat() / 100f, 0f);
+		float q = Rotations.quantum(mc.options.sensitivity().get());
+		float dy = AimAssistMath.quantize(d.yaw(), yawErr, q, yawCarry);
+		float dp = AimAssistMath.quantize(d.pitch(), pitchErr, q, pitchCarry);
+		if (dy == 0f && dp == 0f) return;
+		p.setYRot(p.getYRot() + dy);
+		p.setXRot(Math.max(-90f, Math.min(90f, p.getXRot() + dp)));
+		expectedYaw = p.getYRot();
+		expectedPitch = p.getXRot();
 	}
 }

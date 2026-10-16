@@ -41,5 +41,32 @@ public final class AimAssistMath {
 		return new Delta(dy, dp);
 	}
 
+	/**
+	 * The per-frame equivalent of a per-tick smoothing fraction: applying it every frame for one tick's worth of frames
+	 * closes the same share of the angle as one tick at {@code perTick}.
+	 *
+	 * @param dtTicks frame length in ticks (1/20 s each)
+	 */
+	public static double perFrame(double perTick, double dtTicks) {
+		double k = Math.max(0, Math.min(1, perTick));
+		return 1 - Math.pow(1 - k, Math.max(0, dtTicks));
+	}
+
+	/**
+	 * Snaps {@code wanted + carry[0]} down to whole mouse steps and keeps the remainder in {@code carry[0]}, so movements
+	 * smaller than one step add up over frames instead of rounding to zero. Never returns more than {@code err}.
+	 */
+	public static float quantize(float wanted, float err, float quantum, float[] carry) {
+		if (quantum <= 0f) return wanted;
+		float total = wanted + carry[0];
+		float out = (float) (Math.floor(Math.abs(total) / quantum) * quantum) * Math.signum(total);
+		if (Math.abs(out) > Math.abs(err) || Math.signum(wanted) != Math.signum(total) && wanted != 0f) {
+			carry[0] = 0f;
+			return 0f;
+		}
+		carry[0] = total - out;
+		return out;
+	}
+
 	private static float clamp(float v, float max) { return Math.max(-max, Math.min(max, v)); }
 }
