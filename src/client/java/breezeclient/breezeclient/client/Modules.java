@@ -74,6 +74,7 @@ import breezeclient.breezeclient.client.modules.TotemMacro;
 import breezeclient.breezeclient.client.modules.OreFinder;
 import breezeclient.breezeclient.client.modules.PlayerEsp;
 import breezeclient.breezeclient.client.modules.StaffList;
+import breezeclient.breezeclient.client.modules.SpectatorAlert;
 import breezeclient.breezeclient.client.safety.StaffTracker;
 import breezeclient.breezeclient.client.modules.CustomBlockEsp;
 import breezeclient.breezeclient.client.modules.SpawnerEsp;
@@ -208,6 +209,7 @@ public final class Modules {
 		m.register(blockEsp);
 		m.register(new KillSwitch());
 		m.register(new StaffList());
+		m.register(new SpectatorAlert());
 		m.register(new AutoRelog());
 		m.register(new AutoReconnect());
 		m.register(new AntiAfk());

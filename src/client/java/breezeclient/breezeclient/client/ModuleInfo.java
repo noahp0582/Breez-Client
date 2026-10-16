@@ -121,6 +121,7 @@ public final class ModuleInfo {
 		m("Fullbright", "Maximum brightness everywhere (local night vision; nothing is sent to the server).");
 		m("KillSwitch", "Drops the connection immediately when staff, a spectator or another player comes within range. Logs to killswitch.log.");
 		m("StaffList", "Announces listed staff joining or leaving and outlines them when visible.");
+		m("SpectatorAlert", "Puts a title on your own screen when a player in spectator mode comes within range. Drawn locally; nothing is sent to the server.");
 		m("AutoRelog", "Leaves and rejoins when you reach a Y level (default -3) so the server re-sends nearby chunks.");
 		m("AutoReconnect", "Reconnects after the server drops you. Never after a manual disconnect or a kill switch.");
 		m("AntiAFK", "Small irregular camera turns and hops so you are not kicked for idling.");
