@@ -1,6 +1,7 @@
 package breezeclient.breezeclient.client.modules;
 
 import breezeclient.breezeclient.client.gui.Toasts;
+import breezeclient.breezeclient.client.input.UseClicks;
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.nav.LevelWorld;
 import breezeclient.breezeclient.client.nav.WorkNavigator;
@@ -17,6 +18,7 @@ import breezeclient.breezeclient.core.settings.NumberSetting;
 import breezeclient.breezeclient.core.settings.StringListSetting;
 import breezeclient.breezeclient.core.settings.StringSetting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -31,6 +33,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -99,7 +102,14 @@ public class AutoDig extends Module {
 	private boolean digging;
 	private String lastResult = "";
 
-	public AutoDig() { super("AutoDig", Category.WORLD); }
+	public AutoDig() {
+		super("AutoDig", Category.WORLD);
+		UseClicks.register(new UseClicks.Interceptor() {
+			@Override public boolean onUse(Minecraft mc) { return onUseClick(mc); }
+
+			@Override public void useKeyState(boolean down) { if (!down) useReleased = true; }
+		});
+	}
 
 	@Override
 	protected boolean persistsEnabled() { return false; }
@@ -118,6 +128,11 @@ public class AutoDig extends Module {
 
 	/** Which corner the next right-click on a block sets: 1 or 2, or 0 when not marking. */
 	private int marking;
+	/** The world marking started in; leaving it (disconnect, dimension change) stops marking. Weak so an old world is not kept. */
+	/** How long the box stays drawn after the second corner, so a misclick can be seen before starting. */
+	private static final long SHOW_MARKED_MS = 15_000;
+	private long showMarkedUntil;
+	private WeakReference<ClientLevel> markLevel = new WeakReference<>(null);
 	/** The use key has been let go since the last marked corner, so holding it does not mark both at once. */
 	private boolean useReleased = true;
 
@@ -131,13 +146,9 @@ public class AutoDig extends Module {
 			return;
 		}
 		if (enabled()) setEnabled(false);
+		markLevel = new WeakReference<>(Minecraft.getInstance().level);
 		marking = 1;
 		Toasts.show("AutoDig", "Right-click the first corner block.");
-	}
-
-	/** Called at the start of every keybind pass with the state of the use key. */
-	public void useKeyState(boolean down) {
-		if (!down) useReleased = true;
 	}
 
 	/**
@@ -146,6 +157,10 @@ public class AutoDig extends Module {
 	 */
 	public boolean onUseClick(Minecraft mc) {
 		if (marking == 0 || mc.player == null) return false;
+		if (mc.level != markLevel.get()) {
+			marking = 0; // armed in a world we have since left
+			return false;
+		}
 		if (!(mc.hitResult instanceof BlockHitResult bh) || bh.getType() != HitResult.Type.BLOCK) return false;
 		if (!useReleased) return true; // the same press repeating while held
 		useReleased = false;
@@ -156,6 +171,7 @@ public class AutoDig extends Module {
 			Toasts.show("AutoDig", "Corner 1 set to " + at.toShortString() + ". Right-click the opposite corner.");
 		} else {
 			marking = 0;
+			showMarkedUntil = System.currentTimeMillis() + SHOW_MARKED_MS;
 			Toasts.show("AutoDig", "Corner 2 set to " + at.toShortString() + ". " + status());
 		}
 		return true;
@@ -189,6 +205,7 @@ public class AutoDig extends Module {
 
 	@Override
 	protected void onEnable() {
+		marking = 0; // corners must not change under a running dig
 		Minecraft mc = Minecraft.getInstance();
 		area = area();
 		String problem = mc.player == null || mc.level == null ? "join a world first"
@@ -617,10 +634,21 @@ public class AutoDig extends Module {
 	// render -----------------------------------------------------------------------------------------------------
 
 	@Override
+	protected boolean rendersWhileDisabled() { return marking != 0 || System.currentTimeMillis() < showMarkedUntil; }
+
+	@Override
 	protected void onRender(RenderFrame f) {
-		DigArea a = enabled() && area != null ? area : null;
-		if (a == null) return;
 		int c = color.get() | 0xFF000000;
+		if (!enabled()) {
+			// marking: the box once both corners are set, otherwise just the first corner
+			DigArea m = area();
+			int[] one = DigArea.parseCorner(corner1.get());
+			if (m != null) f.drawBox(m.minX(), m.minY(), m.minZ(), m.maxX() + 1, m.maxY() + 1, m.maxZ() + 1, c);
+			else if (one != null) f.drawBox(one[0], one[1], one[2], one[0] + 1, one[1] + 1, one[2] + 1, c);
+			return;
+		}
+		DigArea a = area;
+		if (a == null) return;
 		f.drawBox(a.minX(), a.minY(), a.minZ(), a.maxX() + 1, a.maxY() + 1, a.maxZ() + 1, c);
 		BlockPos t = target;
 		if (t != null) f.drawBox(t.getX(), t.getY(), t.getZ(), t.getX() + 1, t.getY() + 1, t.getZ() + 1, 0xFFFFFFFF);

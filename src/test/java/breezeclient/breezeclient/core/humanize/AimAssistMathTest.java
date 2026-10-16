@@ -80,14 +80,21 @@ class AimAssistMathTest {
 	void frameStepsMoveAboutAsFarAsTickSteps() {
 		// one tick's worth of frames should land close to a single tick step
 		float yaw = 0f;
-		float[] carry = {0f};
+		float[] yc = {0f}, pc = {0f};
 		double dt = 20.0 / 144;
 		for (int i = 0; i < 144 / 20; i++) {
-			Delta d = AimAssistMath.step(yaw, 0f, 20f, 0f, AimAssistMath.perFrame(0.14, dt), (float) (2.5 * dt), 1.2f, 0.4f, 0f);
-			yaw += AimAssistMath.quantize(d.yaw(), 20f - yaw, 0.15f, carry);
+			yaw += AimAssistMath.frameStep(yaw, 0f, 20f, 0f, 0.14, 2.5f, dt, 1.2f, 0.4f, 0.15f, yc, pc).yaw();
 		}
 		Delta tick = AimAssistMath.step(0f, 0f, 20f, 0f, 0.14, 2.5f, 1.2f, 0.4f, 0f);
 		assertEquals(tick.yaw(), yaw, 0.4f);
+	}
+
+	@Test
+	void insideTheDeadZoneTheCarryIsDroppedNotSpent() {
+		float[] yc = {0.14f}, pc = {0.14f};
+		assertTrue(AimAssistMath.frameStep(10f, 0f, 10.5f, 0.3f, 0.14, 2.5f, 0.15, 1f, 0.4f, 0.15f, yc, pc).isZero());
+		assertEquals(0f, yc[0]);
+		assertEquals(0f, pc[0]);
 	}
 
 	@Test

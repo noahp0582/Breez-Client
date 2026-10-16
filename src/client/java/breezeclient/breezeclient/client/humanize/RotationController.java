@@ -18,6 +18,7 @@ public final class RotationController {
 	private static Rotation target;
 	private static float maxStep = 20f;
 	private static long lastFrame;
+	private static double frameSeconds;
 
 	private RotationController() {}
 
@@ -53,11 +54,15 @@ public final class RotationController {
 		return p == null ? new Rotation(0, 0) : new Rotation(p.getYRot(), p.getXRot());
 	}
 
+	/** Length of the last rendered frame in seconds (0 on the first), shared by everything that moves the camera per frame. */
+	public static double frameSeconds() { return frameSeconds; }
+
 	/** Called once per rendered frame, right after the game has applied the real mouse. */
 	public static void frame() {
 		long now = System.nanoTime();
 		double dt = lastFrame == 0 ? 0 : (now - lastFrame) / 1e9;
 		lastFrame = now;
+		frameSeconds = dt;
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer p = mc.player;
 		if (p == null || target == null) {

@@ -1,5 +1,6 @@
 package breezeclient.breezeclient.client.modules;
 
+import breezeclient.breezeclient.client.input.UseClicks;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
 import breezeclient.breezeclient.core.settings.NumberSetting;
@@ -19,6 +20,7 @@ public class Freecam extends Module {
 	public Freecam() {
 		super("Freecam", Category.RENDER);
 		instance = this;
+		UseClicks.register(mc -> active()); // the real player does not place or use anything while detached
 	}
 
 	public static boolean active() { return instance != null && instance.enabled() && cam != null; }

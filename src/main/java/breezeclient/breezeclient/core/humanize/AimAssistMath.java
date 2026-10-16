@@ -53,6 +53,25 @@ public final class AimAssistMath {
 	}
 
 	/**
+	 * One frame of assist: {@link #step} with the per-tick smoothing and speed scaled to the frame length, then snapped to
+	 * whole mouse steps through the carries. Inside the dead zone the carries are dropped so nothing leaks out there.
+	 *
+	 * @param carry two-element {yaw, pitch} remainder kept between frames
+	 */
+	public static Delta frameStep(float yaw, float pitch, float targetYaw, float targetPitch, double smoothingPerTick,
+		float maxStepPerTick, double dtTicks, float deadZone, float verticalFactor, float quantum, float[] yawCarry, float[] pitchCarry) {
+		Delta d = step(yaw, pitch, targetYaw, targetPitch, perFrame(smoothingPerTick, dtTicks), (float) (maxStepPerTick * dtTicks),
+			deadZone, verticalFactor, 0f);
+		if (d.isZero()) {
+			yawCarry[0] = pitchCarry[0] = 0f;
+			return Delta.NONE;
+		}
+		float dy = quantize(d.yaw(), Rotations.wrapDegrees(targetYaw - yaw), quantum, yawCarry);
+		float dp = quantize(d.pitch(), targetPitch - pitch, quantum, pitchCarry);
+		return dy == 0f && dp == 0f ? Delta.NONE : new Delta(dy, dp);
+	}
+
+	/**
 	 * Snaps {@code wanted + carry[0]} down to whole mouse steps and keeps the remainder in {@code carry[0]}, so movements
 	 * smaller than one step add up over frames instead of rounding to zero. Never returns more than {@code err}.
 	 */

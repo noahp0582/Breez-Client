@@ -51,9 +51,11 @@ public class AimAssist extends Module {
 	private static AimAssist instance;
 
 	private LivingEntity current;
+	/** The target the sub-step carries were collected for; a new target starts from zero. */
+	private LivingEntity carryTarget;
 	private boolean haveExpected;
 	private float expectedYaw, expectedPitch;
-	private long lastFrame, lastUserTurn;
+	private long lastUserTurn;
 	private final float[] yawCarry = {0f}, pitchCarry = {0f};
 
 	public AimAssist() {
@@ -67,9 +69,8 @@ public class AimAssist extends Module {
 	}
 
 	private void reset() {
-		current = null;
+		current = carryTarget = null;
 		haveExpected = false;
-		lastFrame = 0;
 		yawCarry[0] = pitchCarry[0] = 0f;
 	}
 
@@ -134,8 +135,7 @@ public class AimAssist extends Module {
 
 	private void onFrame() {
 		long now = System.nanoTime();
-		double dtTicks = lastFrame == 0 ? 0 : Math.min(MAX_FRAME_TICKS, (now - lastFrame) / 50_000_000.0);
-		lastFrame = now;
+		double dtTicks = Math.min(MAX_FRAME_TICKS, RotationController.frameSeconds() * 20.0);
 
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer p = mc.player;
@@ -144,9 +144,10 @@ public class AimAssist extends Module {
 			return;
 		}
 
-		// did the player turn the camera themselves since our last frame?
-		if (!haveExpected || Math.abs(Rotations.wrapDegrees(p.getYRot() - expectedYaw)) > 0.01f
-			|| Math.abs(p.getXRot() - expectedPitch) > 0.01f) {
+		// did the player turn the camera themselves since our last frame? The first frame after a pause only sets the
+		// baseline, so opening a gate (pressing attack, another module finishing its aim) is not mistaken for a turn.
+		if (haveExpected && (Math.abs(Rotations.wrapDegrees(p.getYRot() - expectedYaw)) > 0.01f
+			|| Math.abs(p.getXRot() - expectedPitch) > 0.01f)) {
 			lastUserTurn = now;
 		}
 		expectedYaw = p.getYRot();
@@ -154,6 +155,10 @@ public class AimAssist extends Module {
 		haveExpected = true;
 
 		LivingEntity t = current;
+		if (t != carryTarget) {
+			carryTarget = t;
+			yawCarry[0] = pitchCarry[0] = 0f;
+		}
 		if (t == null || dtTicks <= 0) return;
 		if (onlyMoving.get() && now - lastUserTurn > USER_TURN_GRACE_NANOS) return;
 		// already on target: leave the camera alone
@@ -165,17 +170,12 @@ public class AimAssist extends Module {
 		double h = aimChest.get() ? t.getBbHeight() * 0.65 : t.getEyeHeight();
 		Rotation want = RotationController.rotationTo(p.getEyePosition(pt), pos.add(0, h, 0));
 
-		float yawErr = Rotations.wrapDegrees(want.yaw() - p.getYRot());
-		float pitchErr = want.pitch() - p.getXRot();
-		AimAssistMath.Delta d = AimAssistMath.step(p.getYRot(), p.getXRot(), want.yaw(), want.pitch(),
-			AimAssistMath.perFrame(smoothing.get() / 100.0, dtTicks), (float) (maxSpeed.get() * dtTicks), deadZone.asFloat(),
-			vertical.asFloat() / 100f, 0f);
-		float q = Rotations.quantum(mc.options.sensitivity().get());
-		float dy = AimAssistMath.quantize(d.yaw(), yawErr, q, yawCarry);
-		float dp = AimAssistMath.quantize(d.pitch(), pitchErr, q, pitchCarry);
-		if (dy == 0f && dp == 0f) return;
-		p.setYRot(p.getYRot() + dy);
-		p.setXRot(Math.max(-90f, Math.min(90f, p.getXRot() + dp)));
+		AimAssistMath.Delta d = AimAssistMath.frameStep(p.getYRot(), p.getXRot(), want.yaw(), want.pitch(), smoothing.get() / 100.0,
+			maxSpeed.asFloat(), dtTicks, deadZone.asFloat(), vertical.asFloat() / 100f, Rotations.quantum(mc.options.sensitivity().get()),
+			yawCarry, pitchCarry);
+		if (d.isZero()) return;
+		p.setYRot(p.getYRot() + d.yaw());
+		p.setXRot(Math.max(-90f, Math.min(90f, p.getXRot() + d.pitch())));
 		expectedYaw = p.getYRot();
 		expectedPitch = p.getXRot();
 	}

@@ -115,6 +115,9 @@ public abstract class Module {
 	protected void onTick() {}
 	protected void onRender(RenderFrame frame) {}
 
+	/** True while a switched-off module still has something to draw (e.g. a selection being marked). */
+	protected boolean rendersWhileDisabled() { return false; }
+
 	/** Invoked by ModuleManager, which isolates exceptions. */
 	void tickInternal() { onTick(); }
 	void renderInternal(RenderFrame frame) { onRender(frame); }

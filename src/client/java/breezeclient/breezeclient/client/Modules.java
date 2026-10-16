@@ -429,9 +429,10 @@ public final class Modules {
 						reply.accept(err == null ? "Building " + builder.status() : "Could not start: " + err);
 					}
 					case "files" -> {
-						var f = SchematicBuilder.files();
+						var all = SchematicBuilder.found();
+						var f = SchematicBuilder.files(all);
 						reply.accept(f.isEmpty() ? "No schematics found. Put .litematic, .schem, .schematic or .nbt files next to the mod jar (subfolders count)." : "Found " + f.size() + " schematic" + (f.size() == 1 ? "" : "s") + ": " + String.join(", ", f));
-						for (String line : SchematicBuilder.describeFolders()) reply.accept("  " + line);
+						for (String line : SchematicBuilder.describeFolders(all)) reply.accept("  " + line);
 					}
 					case "load" -> {
 						if (a.length < 2) { reply.accept("Usage: " + usage()); return; }

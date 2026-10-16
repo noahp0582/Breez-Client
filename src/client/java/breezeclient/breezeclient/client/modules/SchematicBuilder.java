@@ -207,43 +207,33 @@ public class SchematicBuilder extends Module {
 		return existing;
 	}
 
-	/** Every schematic file in the search folders and their subfolders, first folder wins when a name appears twice. */
-	public static List<Path> found() {
+	/** Every schematic in the search folders and their subfolders; one walk of the folders per call. */
+	public static List<SchematicFiles.Entry> found() {
 		return SchematicFiles.scan(searchDirs());
 	}
 
-	public static List<String> files() {
+	/** The names to type for {@code all}: the path below its search folder, e.g. "v2/house.litematic". */
+	public static List<String> files(List<SchematicFiles.Entry> all) {
 		List<String> out = new ArrayList<>();
-		for (Path p : found()) out.add(p.getFileName().toString());
+		for (SchematicFiles.Entry e : all) out.add(e.name());
 		return out;
 	}
 
-	/** Finds a schematic by file name (extension optional, case ignored) in the search folders. */
-	public static Path locate(String name) {
-		String want = name.trim();
-		if (want.isEmpty()) return null;
-		for (Path p : found()) {
-			String n = p.getFileName().toString();
-			if (n.equalsIgnoreCase(want)) return p;
-		}
-		for (Path p : found()) {
-			String n = p.getFileName().toString();
-			int dot = n.lastIndexOf('.');
-			if (dot > 0 && n.substring(0, dot).equalsIgnoreCase(want)) return p;
-		}
-		return null;
+	/** Finds a schematic by name or file name (extension optional, case ignored) in the search folders. */
+	public static SchematicFiles.Entry locate(String name) {
+		return SchematicFiles.find(found(), name);
 	}
 
 	/** The most recently changed schematic found, or null. */
-	public static Path newest() {
-		Path best = null;
+	public static SchematicFiles.Entry newest() {
+		SchematicFiles.Entry best = null;
 		long bestTime = Long.MIN_VALUE;
-		for (Path p : found()) {
+		for (SchematicFiles.Entry e : found()) {
 			try {
-				long t = Files.getLastModifiedTime(p).toMillis();
+				long t = Files.getLastModifiedTime(e.path()).toMillis();
 				if (t > bestTime) {
 					bestTime = t;
-					best = p;
+					best = e;
 				}
 			} catch (IOException ignored) {
 				// skip it
@@ -260,15 +250,15 @@ public class SchematicBuilder extends Module {
 
 	/** @return an error message, or null when the file loaded. */
 	public String load(String name) {
-		Path p = locate(name);
-		if (p == null) return "no schematic named '" + name + "'. Put .litematic, .schem, .schematic or .nbt files next to the mod jar (subfolders count) (searched: " + searched() + ")";
+		SchematicFiles.Entry e = locate(name);
+		if (e == null) return "no schematic named '" + name + "'. Put .litematic, .schem, .schematic or .nbt files next to the mod jar (subfolders count) (searched: " + searched() + ")";
 		try {
-			loaded = SchematicReader.read(Files.readAllBytes(p), p.getFileName().toString());
-			file.set(p.getFileName().toString());
+			loaded = SchematicReader.read(Files.readAllBytes(e.path()), e.fileName());
+			file.set(e.name());
 			return null;
-		} catch (IOException e) {
+		} catch (IOException ex) {
 			loaded = null;
-			return p.getFileName() + ": " + e.getMessage();
+			return e.fileName() + ": " + ex.getMessage();
 		}
 	}
 
@@ -283,9 +273,9 @@ public class SchematicBuilder extends Module {
 		if (mc.player == null || mc.level == null) return "join a world first";
 		String pick = name == null || name.isBlank() ? file.get() : name;
 		if (pick == null || pick.isBlank()) {
-			Path n = newest();
+			SchematicFiles.Entry n = newest();
 			if (n == null) return "no schematics found. Put .litematic, .schem, .schematic or .nbt files next to the mod jar (subfolders count) (searched: " + searched() + ")";
-			pick = n.getFileName().toString();
+			pick = n.name();
 		}
 		String err = load(pick);
 		if (err != null) return err;
@@ -302,13 +292,12 @@ public class SchematicBuilder extends Module {
 		return enabled() ? null : "could not start";
 	}
 
-	/** One line per folder searched with how many schematics each holds, for .build files and the GUI. */
-	public static List<String> describeFolders() {
+	/** One line per folder searched with how many of {@code all} (from {@link #found()}) it holds. */
+	public static List<String> describeFolders(List<SchematicFiles.Entry> all) {
 		List<String> out = new ArrayList<>();
-		List<Path> all = found();
 		for (Path d : searchDirs()) {
 			int n = 0;
-			for (Path p : all) if (p.startsWith(d)) n++;
+			for (SchematicFiles.Entry e : all) if (e.path().startsWith(d)) n++;
 			out.add(d + "  (" + n + " schematic" + (n == 1 ? "" : "s") + ")");
 		}
 		return out;

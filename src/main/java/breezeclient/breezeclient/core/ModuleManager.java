@@ -46,7 +46,7 @@ public class ModuleManager {
 
 	public void render(RenderFrame frame) {
 		for (Module m : new ArrayList<>(modules)) {
-			if (!m.enabled()) continue;
+			if (!m.enabled() && !m.rendersWhileDisabled()) continue;
 			try {
 				m.renderInternal(frame);
 			} catch (Throwable t) {
