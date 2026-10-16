@@ -124,6 +124,21 @@ class SchematicReaderTest {
 	}
 
 	@Test
+	void spongeNamedDotSchematicStillLoads() throws IOException {
+		Map<String, Object> root = m("Version", 2, "Width", (short) 1, "Height", (short) 1, "Length", (short) 1,
+			"Palette", m("minecraft:stone", 0), "BlockData", new byte[] {0});
+		assertEquals(1, SchematicReader.read(NbtTestWriter.write(root, true), "old-name.schematic").blocks().size());
+	}
+
+	@Test
+	void oldMcEditSchematicSaysHowToConvert() throws IOException {
+		Map<String, Object> root = m("Width", (short) 1, "Height", (short) 1, "Length", (short) 1, "Materials", "Alpha",
+			"Blocks", new byte[] {1}, "Data", new byte[] {0});
+		IOException e = assertThrows(IOException.class, () -> SchematicReader.read(NbtTestWriter.write(root, true), "castle.schematic"));
+		assertTrue(e.getMessage().contains("MCEdit"), e.getMessage());
+	}
+
+	@Test
 	void truncatedBlockDataIsAnIOException() throws IOException {
 		Map<String, Object> root = m("Width", (short) 4, "Height", (short) 1, "Length", (short) 1, "Palette", m("minecraft:air", 0, "minecraft:stone", 1), "BlockData", new byte[] {1});
 		assertThrows(IOException.class, () -> SchematicReader.read(NbtTestWriter.write(root, true), "x.schem"));

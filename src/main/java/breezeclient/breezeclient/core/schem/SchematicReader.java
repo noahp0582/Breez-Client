@@ -7,7 +7,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Reads .litematic, Sponge .schem (v2 and v3) and vanilla structure .nbt files. */
+/**
+ * Reads .litematic, Sponge .schem (v2 and v3, also when named .schematic) and vanilla structure .nbt files. Old MCEdit
+ * .schematic files are recognised and refused with a message saying how to convert them.
+ */
 public final class SchematicReader {
 	private SchematicReader() {}
 
@@ -20,6 +23,10 @@ public final class SchematicReader {
 			if (root.containsKey("palette") && root.containsKey("blocks")) return structure(root);
 		} catch (RuntimeException e) {
 			throw new IOException("could not parse schematic: " + e.getMessage(), e);
+		}
+		if (root.containsKey("Blocks") && root.containsKey("Data")) {
+			throw new IOException("this is an old MCEdit .schematic from before 1.13, which stores number block ids. "
+				+ "Open it with WorldEdit (//schem load, then //schem save) or Litematica and save it as .schem or .litematic");
 		}
 		throw new IOException("unrecognized schematic format");
 	}

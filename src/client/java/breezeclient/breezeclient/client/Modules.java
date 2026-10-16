@@ -430,7 +430,7 @@ public final class Modules {
 					}
 					case "files" -> {
 						var f = SchematicBuilder.files();
-						reply.accept(f.isEmpty() ? "No schematics found. Put .litematic, .schem or .nbt files next to the mod jar." : String.join(", ", f));
+						reply.accept(f.isEmpty() ? "No schematics found. Put .litematic, .schem, .schematic or .nbt files next to the mod jar (subfolders count)." : "Found " + f.size() + " schematic" + (f.size() == 1 ? "" : "s") + ": " + String.join(", ", f));
 						for (String line : SchematicBuilder.describeFolders()) reply.accept("  " + line);
 					}
 					case "load" -> {

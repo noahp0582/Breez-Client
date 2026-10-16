@@ -13,6 +13,7 @@ import breezeclient.breezeclient.core.nav.Goal;
 import breezeclient.breezeclient.core.nav.Pathfinder;
 import breezeclient.breezeclient.core.nav.Pos;
 import breezeclient.breezeclient.core.schem.SchematicData;
+import breezeclient.breezeclient.core.schem.SchematicFiles;
 import breezeclient.breezeclient.core.schem.SchematicReader;
 import breezeclient.breezeclient.core.settings.BoolSetting;
 import breezeclient.breezeclient.core.settings.NumberSetting;
@@ -55,7 +56,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Builds a loaded schematic by hand, the way the schematic "printers" work: instead of following a fixed list, it keeps
@@ -201,28 +201,15 @@ public class SchematicBuilder extends Module {
 		}
 		out.add(dir().toAbsolutePath().normalize());
 		out.add(loader.getGameDir().resolve("schematics").toAbsolutePath().normalize());
+		out.add(loader.getConfigDir().resolve("worldedit").resolve("schematics").toAbsolutePath().normalize());
 		List<Path> existing = new ArrayList<>();
 		for (Path p : out) if (Files.isDirectory(p)) existing.add(p);
 		return existing;
 	}
 
-	private static boolean isSchematic(String n) {
-		String l = n.toLowerCase(Locale.ROOT);
-		return l.endsWith(".litematic") || l.endsWith(".schem") || l.endsWith(".nbt");
-	}
-
-	/** Every schematic file in the search folders, first folder wins when a name appears twice. */
+	/** Every schematic file in the search folders and their subfolders, first folder wins when a name appears twice. */
 	public static List<Path> found() {
-		java.util.Map<String, Path> byName = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-		for (Path d : searchDirs()) {
-			try (Stream<Path> s = Files.list(d)) {
-				s.filter(Files::isRegularFile).filter(p -> isSchematic(p.getFileName().toString()))
-					.forEach(p -> byName.putIfAbsent(p.getFileName().toString(), p));
-			} catch (IOException ignored) {
-				// an unreadable folder is skipped
-			}
-		}
-		return new ArrayList<>(byName.values());
+		return SchematicFiles.scan(searchDirs());
 	}
 
 	public static List<String> files() {
@@ -274,7 +261,7 @@ public class SchematicBuilder extends Module {
 	/** @return an error message, or null when the file loaded. */
 	public String load(String name) {
 		Path p = locate(name);
-		if (p == null) return "no schematic named '" + name + "'. Put .litematic, .schem or .nbt files next to the mod jar (searched: " + searched() + ")";
+		if (p == null) return "no schematic named '" + name + "'. Put .litematic, .schem, .schematic or .nbt files next to the mod jar (subfolders count) (searched: " + searched() + ")";
 		try {
 			loaded = SchematicReader.read(Files.readAllBytes(p), p.getFileName().toString());
 			file.set(p.getFileName().toString());
@@ -297,7 +284,7 @@ public class SchematicBuilder extends Module {
 		String pick = name == null || name.isBlank() ? file.get() : name;
 		if (pick == null || pick.isBlank()) {
 			Path n = newest();
-			if (n == null) return "no schematics found. Put .litematic, .schem or .nbt files next to the mod jar (searched: " + searched() + ")";
+			if (n == null) return "no schematics found. Put .litematic, .schem, .schematic or .nbt files next to the mod jar (subfolders count) (searched: " + searched() + ")";
 			pick = n.getFileName().toString();
 		}
 		String err = load(pick);
@@ -321,7 +308,7 @@ public class SchematicBuilder extends Module {
 		List<Path> all = found();
 		for (Path d : searchDirs()) {
 			int n = 0;
-			for (Path p : all) if (d.equals(p.getParent())) n++;
+			for (Path p : all) if (p.startsWith(d)) n++;
 			out.add(d + "  (" + n + " schematic" + (n == 1 ? "" : "s") + ")");
 		}
 		return out;
