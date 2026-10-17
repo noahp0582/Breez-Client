@@ -134,6 +134,9 @@ public final class BuildTest {
 				cmd(mc, "clear @a");
 				cmd(mc, "fill -14 145 -14 14 149 14 minecraft:stone");
 				cmd(mc, "fill -14 150 -14 14 160 14 minecraft:air");
+				// night in the test world: a zombie that wanders in gets walled into the house and blocks its ceiling
+				cmd(mc, "time set day");
+				cmd(mc, "kill @e[type=!minecraft:player,x=-20,y=140,z=-20,dx=40,dy=30,dz=40]");
 			}
 			if (ticks == 40) cmd(mc, "execute as @a run tp @s 0.5 150 -6.5");
 			if (ticks == 60) mc.player.setXRot(35);
@@ -166,6 +169,9 @@ public final class BuildTest {
 		finished = true;
 		var b = Modules.builder;
 		for (String n : b.notes()) LOG.add("  skip: " + n);
+		List<String> near = new ArrayList<>();
+		for (var e : mc.level.getEntities(mc.player, new net.minecraft.world.phys.AABB(-20, 140, -20, 20, 170, 20))) near.add(net.minecraft.world.entity.EntityType.getKey(e.getType()).getPath() + " at " + e.blockPosition().toShortString());
+		if (!near.isEmpty()) LOG.add("  entities near the build: " + near);
 		LOG.add("builder status: " + b.status() + " after " + (ticks - startedAt) + " ticks, enabled=" + b.enabled());
 		BlockPos o = b.origin();
 		int bad = 0, total = 0;

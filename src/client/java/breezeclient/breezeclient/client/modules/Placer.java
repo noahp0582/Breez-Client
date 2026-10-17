@@ -7,6 +7,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -102,7 +103,20 @@ final class Placer {
 		BlockHitResult clip = mc.level.clip(new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, p));
 		if (clip.getType() != HitResult.Type.BLOCK || !clip.getBlockPos().equals(block)) return null;
 		if (face != null && clip.getDirection() != face) return null;
+		if (entityInLine(p, eye, clip.getLocation())) return null;
 		return clip;
+	}
+
+	/** True when a mob or another entity the crosshair would stop at is between the eye and the point. */
+	private static boolean entityInLine(LocalPlayer p, Vec3 eye, Vec3 point) {
+		AABB around = new AABB(eye, point).inflate(1.0);
+		return ProjectileUtil.getEntityHitResult(p, eye, point, around, e -> !e.isSpectator() && e.isPickable(), eye.distanceToSqr(point)) != null;
+	}
+
+	/** True when an entity other than the player stands where the block would go: the server refuses such a placement. */
+	private static boolean entityInSpace(Minecraft mc, LocalPlayer p, BlockPos pos, BlockState want) {
+		VoxelShape shape = want.getCollisionShape(mc.level, pos);
+		return !shape.isEmpty() && !mc.level.isUnobstructed(p, shape.move(pos.getX(), pos.getY(), pos.getZ()));
 	}
 
 	/**
@@ -156,6 +170,7 @@ final class Placer {
 	 */
 	static Plan find(Minecraft mc, LocalPlayer p, BlockPos pos, BlockState want, Item item, Vec3 eye, double reach, boolean needExact) {
 		if (!(item instanceof BlockItem bi)) return null;
+		if (entityInSpace(mc, p, pos, want)) return null;
 		BlockState cur = mc.level.getBlockState(pos);
 		if (halfOfDouble(cur, want)) {
 			Direction face = cur.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.BOTTOM ? Direction.UP : Direction.DOWN;

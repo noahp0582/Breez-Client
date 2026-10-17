@@ -60,6 +60,7 @@ public final class DigTest {
 				cmd(mc, "time set day");
 				cmd(mc, "fill -14 140 -14 14 149 14 minecraft:stone");
 				cmd(mc, "fill -14 150 -14 14 160 14 minecraft:air");
+				cmd(mc, "kill @e[type=!minecraft:player,x=-20,y=140,z=-20,dx=40,dy=30,dz=40]"); // a mob left from the night would block the crosshair
 				cmd(mc, "setblock " + CHEST.getX() + " " + CHEST.getY() + " " + CHEST.getZ() + " minecraft:chest");
 				cmd(mc, "give @a minecraft:netherite_pickaxe[minecraft:custom_name=\"Shard Pickaxe\",minecraft:enchantments={\"minecraft:efficiency\":5}]");
 				cmd(mc, "give @a minecraft:diamond_pickaxe[minecraft:enchantments={\"minecraft:efficiency\":5}]");

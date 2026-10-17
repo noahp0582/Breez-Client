@@ -158,7 +158,7 @@ public final class WorkNavigator {
 	public Start start(Minecraft mc, List<BlockPos> targets, double reach, double eyeHeight, Spot spot, boolean allowPlace, LongPredicate noPlace) {
 		LocalPlayer p = mc.player;
 		if (p == null || mc.level == null || targets.isEmpty()) return fail(Start.NO_ROUTE);
-		if (!p.onGround()) return Start.NOT_READY; // wait to land before planning
+		if (PathExecutor.land(p) || !p.onGround()) return Start.NOT_READY; // wait to land before planning
 		NavModule nav = NavModule.instance;
 		boolean place = allowPlace && nav != null && nav.hasPlaceable();
 		Pathfinder.Options opts = new Pathfinder.Options(false, place, nav == null || nav.allowParkour.get(), nav == null ? 3 : Math.min(3, nav.maxFall.asInt()), 1.0, 6.0);

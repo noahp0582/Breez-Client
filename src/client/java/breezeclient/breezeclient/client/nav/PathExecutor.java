@@ -121,6 +121,7 @@ public final class PathExecutor {
 			done();
 			return;
 		}
+		land(p);
 		// skip steps we are already standing on (overshot or fell onto a later cell)
 		for (int k = Math.min(steps.size() - 1, idx + 2); k >= idx; k--) {
 			if (k > idx && arrived(p, steps.get(k)) && steps.get(k).move() != Move.PILLAR) {
@@ -160,6 +161,19 @@ public final class PathExecutor {
 			case PILLAR -> pillar(mc, p, prev, s);
 			case BRIDGE -> bridge(mc, level, p, prev, s);
 		}
+	}
+
+	/**
+	 * Ends creative flight. The path is walked on foot, and two jumps in quick succession (stepping up twice, pillaring)
+	 * switch flight on in creative: a flying player never stands on the ground, so it could no longer jump or arrive.
+	 *
+	 * @return true when the player was flying
+	 */
+	public static boolean land(LocalPlayer p) {
+		if (!p.getAbilities().flying) return false;
+		p.getAbilities().flying = false;
+		p.onUpdateAbilities();
+		return true;
 	}
 
 	private boolean arrived(LocalPlayer p, Step s) {
