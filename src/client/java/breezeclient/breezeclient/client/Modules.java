@@ -210,6 +210,7 @@ public final class Modules {
 		m.register(new KillSwitch());
 		m.register(new StaffList());
 		m.register(new SpectatorAlert());
+		m.register(new breezeclient.breezeclient.client.modules.Debug());
 		m.register(new AutoRelog());
 		m.register(new AutoReconnect());
 		m.register(new AntiAfk());
@@ -251,6 +252,32 @@ public final class Modules {
 
 	public static void registerCommands(CommandManager c, ConfigManager config) {
 		breezeclient.breezeclient.client.nav.NavCommands.register(c);
+		c.register(new Command() {
+			public String name() { return "debug"; }
+			public String usage() { return "debug [copy|clear|file|count]"; }
+			public void run(String[] a, Consumer<String> reply) {
+				String sub = a.length == 0 ? "" : a[0].toLowerCase(java.util.Locale.ROOT);
+				switch (sub) {
+					case "copy" -> {
+						net.minecraft.client.Minecraft.getInstance().keyboardHandler.setClipboard(breezeclient.breezeclient.client.debug.DebugLog.report());
+						reply.accept("Debug report copied to the clipboard (" + breezeclient.breezeclient.client.debug.DebugLog.entries().size() + " entries). Paste it into a bug report.");
+					}
+					case "clear" -> {
+						breezeclient.breezeclient.client.debug.DebugLog.clear();
+						reply.accept("Debug entries cleared (breez-debug.log keeps them).");
+					}
+					case "file" -> reply.accept("Log file: " + breezeclient.breezeclient.client.debug.DebugLog.file());
+					case "" , "count" -> {
+						var list = breezeclient.breezeclient.client.debug.DebugLog.entries();
+						if (list.isEmpty()) { reply.accept("No warnings or errors recorded."); return; }
+						if (sub.equals("count")) { reply.accept(list.size() + " entries"); return; }
+						for (var e : list.subList(Math.max(0, list.size() - 10), list.size())) reply.accept(e.line());
+						reply.accept("Last " + Math.min(10, list.size()) + " of " + list.size() + ". " + c.prefix() + "debug copy copies everything with stack traces.");
+					}
+					default -> reply.accept("Usage: " + usage());
+				}
+			}
+		});
 		c.register(new Command() {
 			public String name() { return "detection"; }
 			public String usage() { return "detection [undetected|risk|detected]"; }

@@ -819,8 +819,13 @@ public class SchematicBuilder extends Module {
 	private void walking(Minecraft mc, LocalPlayer p) {
 		switch (nav.state()) {
 			case WALKING -> {
+				// the walker only fails when the player stops moving; jumping or digging in place forever keeps it busy
+				if (++navTicks > 20 * 60) {
+					walkFailed(mc);
+					return;
+				}
 				// like a printer: whatever comes within reach on the way gets done on the way
-				if (++navTicks % 8 == 0 && p.onGround()) {
+				if (navTicks % 8 == 0 && p.onGround()) {
 					Job j = scan(mc, p);
 					if (j != null) {
 						nav.cancel();
@@ -840,16 +845,18 @@ public class SchematicBuilder extends Module {
 				nav.cancel();
 				rescan(limiter.between(2, 5));
 			}
-			default -> {
-				collectScaffold(mc);
-				if (++navFails >= 3) {
-					for (BlockPos t : frontier) stuck.add(t.asLong());
-					navFails = 0;
-				}
-				nav.cancel();
-				rescan(5);
-			}
+			default -> walkFailed(mc);
 		}
+	}
+
+	private void walkFailed(Minecraft mc) {
+		collectScaffold(mc);
+		if (++navFails >= 3) {
+			for (BlockPos t : frontier) stuck.add(t.asLong());
+			navFails = 0;
+		}
+		nav.cancel();
+		rescan(5);
 	}
 
 	/**

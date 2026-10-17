@@ -36,6 +36,7 @@ public class BreezClientClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		breezeclient.breezeclient.client.debug.DebugLog.install(); // first, so problems during startup are recorded too
 		breezeclient.breezeclient.client.gui.GuiState.load();
 		Modules.registerAll(MODULES);
 		ModuleActions.install(MODULES);
