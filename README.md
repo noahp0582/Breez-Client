@@ -109,6 +109,7 @@ modules as something that can get you banned.
 | BaseFinding | SeedChunkFinder | With the seed set, chunks where most of the generated ore is gone (mined out). |
 | Render | BlockNotifier | Pop-up (and chime) when a listed block appears in range. |
 | Render | PearlTrajectory | Landing prediction for the pearl in your hand and for pearls in flight. |
+| Render | BowTrajectory | Where your arrow or trident will hit (bow, loaded crossbow, trident), with the entity it would hit outlined; optionally arrows already in flight. |
 | Render | RealHitBox | Draws the true hitbox the server uses. |
 | Render | TargetHUD, MusicHUD | Target panel (name, health, armor, distance) and a "now playing" line. |
 | Client | DiscordPresence | Rich presence through the local Discord app. Needs an Application ID (empty = nothing is sent). |

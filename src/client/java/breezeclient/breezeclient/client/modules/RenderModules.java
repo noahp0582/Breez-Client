@@ -18,14 +18,21 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
+import net.minecraft.world.item.BowItem;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
@@ -163,6 +170,122 @@ public final class RenderModules {
 					if (!(e instanceof ThrownEnderpearl) || e.isRemoved() || shown >= 16) continue;
 					shown++;
 					Vec3 v = e.getDeltaMovement();
+					Vec3 start = e.position();
+					var r = Trajectory.simulate(new Trajectory.Point(start.x, start.y, start.z), new Trajectory.Point(v.x, v.y, v.z), GRAVITY, DRAG, steps.asInt(), collider(e));
+					draw(f, r, start, otherColor.get() | 0xFF000000);
+				}
+			}
+		}
+	}
+
+	// ---------------------------------------------------------------------------------------------------------------
+
+	/** Draws where an arrow (or trident) will hit: for the bow, crossbow or trident in your hand, and for arrows already flying. */
+	public static class BowTrajectory extends Module {
+		private static final double GRAVITY = 0.05, DRAG = 0.99;
+
+		private final BoolSetting held = add(new BoolSetting("Held weapon", true), "Show", "Preview the shot while you hold a bow, loaded crossbow or trident.");
+		private final BoolSetting fullPower = add(new BoolSetting("Before drawing", true), "Show", "Show the full-power path while holding a bow you have not started drawing yet.", held::get);
+		private final BoolSetting flying = add(new BoolSetting("Arrows in flight", false), "Show", "Predict where arrows and tridents already in the air will hit (yours and others').");
+		private final BoolSetting entities = add(new BoolSetting("Hit entities", true), "Detail", "Stop the path at players and mobs in the way, and outline the one it would hit.");
+		private final NumberSetting steps = add(new NumberSetting("Max steps", 150, 20, 400), "Detail", "How many ticks of flight to follow.");
+		private final ColorSetting color = add(new ColorSetting("Color", 0xFFFFFF55), "Colors", "Path of your own shot.");
+		private final ColorSetting hitColor = add(new ColorSetting("Hit color", 0xFFFF5555), "Colors", "Path and outline when the shot would hit an entity.", entities::get);
+		private final ColorSetting otherColor = add(new ColorSetting("In-flight color", 0xFFFFAA33), "Colors", "Path of arrows already in the air.", flying::get);
+
+		private Entity hitEntity;
+		/** What the last drawn path of the held weapon ended on; read by the self-test. */
+		private volatile Trajectory.Point heldLanding;
+		private volatile Entity heldHit;
+
+		public BowTrajectory() { super("BowTrajectory", Category.RENDER); }
+
+		public Trajectory.Point heldLanding() { return heldLanding; }
+
+		public Entity heldHit() { return heldHit; }
+
+		/** Launch speed of the held weapon in blocks per tick, or 0 when it would not shoot an arrow right now. */
+		private double power(LocalPlayer p, ItemStack stack) {
+			if (stack.is(Items.BOW)) {
+				if (p.isUsingItem() && p.getUseItem() == stack) return Math.max(0.1f, BowItem.getPowerForTime(p.getTicksUsingItem())) * 3.0;
+				return fullPower.get() ? 3.0 : 0;
+			}
+			if (stack.is(Items.CROSSBOW)) {
+				var charged = stack.get(DataComponents.CHARGED_PROJECTILES);
+				return charged == null || charged.isEmpty() || charged.contains(Items.FIREWORK_ROCKET) ? 0 : 3.15; // rockets fly straight under their own power
+			}
+			if (stack.is(Items.TRIDENT)) return p.isUsingItem() && p.getUseItem() == stack && p.getTicksUsingItem() >= TridentItem.THROW_THRESHOLD_TIME ? 2.5 : 0;
+			return 0;
+		}
+
+		private Trajectory.Collider collider(Entity owner) {
+			var level = Minecraft.getInstance().level;
+			hitEntity = null;
+			Entity shooter = owner instanceof Projectile pr ? pr.getOwner() : owner;
+			return (a, b) -> {
+				Vec3 from = new Vec3(a.x(), a.y(), a.z()), to = new Vec3(b.x(), b.y(), b.z());
+				var block = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, owner));
+				if (block.getType() != HitResult.Type.MISS) to = block.getLocation();
+				if (entities.get()) {
+					EntityHitResult e = ProjectileUtil.getEntityHitResult(level, owner, from, to, new AABB(from, to).inflate(1.0),
+						t -> t != owner && t != shooter && t.canBeHitByProjectile() && !t.isSpectator(), 0.0f);
+					if (e != null) {
+						hitEntity = e.getEntity();
+						Vec3 l = e.getLocation();
+						return new Trajectory.Point(l.x, l.y, l.z);
+					}
+				}
+				return block.getType() == HitResult.Type.MISS ? null : new Trajectory.Point(to.x, to.y, to.z);
+			};
+		}
+
+		private void draw(RenderFrame f, Trajectory.Result r, Vec3 from, int argb) {
+			if (hitEntity != null) {
+				argb = hitColor.get() | 0xFF000000;
+				AABB b = hitEntity.getBoundingBox();
+				f.drawBox(b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ, argb);
+			}
+			Vec3 prev = from;
+			for (Trajectory.Point p : r.points()) {
+				f.drawLine(prev.x, prev.y, prev.z, p.x(), p.y(), p.z(), argb);
+				prev = new Vec3(p.x(), p.y(), p.z());
+			}
+			if (r.landing() != null) {
+				var l = r.landing();
+				f.drawBox(l.x() - 0.2, l.y() - 0.2, l.z() - 0.2, l.x() + 0.2, l.y() + 0.2, l.z() + 0.2, argb);
+			}
+		}
+
+		@Override
+		protected void onRender(RenderFrame f) {
+			Minecraft mc = Minecraft.getInstance();
+			LocalPlayer p = mc.player;
+			if (p == null || mc.level == null) return;
+			if (held.get()) {
+				double power = power(p, p.getMainHandItem());
+				if (power == 0) power = power(p, p.getOffhandItem());
+				if (power > 0) { // same aim and inherited motion as Projectile.shootFromRotation
+					float yaw = p.getYRot() * (float) (Math.PI / 180.0), pitch = p.getXRot() * (float) (Math.PI / 180.0);
+					double dx = -Math.sin(yaw) * Math.cos(pitch), dy = -Math.sin(pitch), dz = Math.cos(yaw) * Math.cos(pitch);
+					Vec3 move = p.getKnownMovement();
+					var vel = new Trajectory.Point(dx * power + move.x, dy * power + (p.onGround() ? 0 : move.y), dz * power + move.z);
+					Vec3 start = new Vec3(p.getX(), p.getEyeY() - 0.1f, p.getZ());
+					var r = Trajectory.simulate(new Trajectory.Point(start.x, start.y, start.z), vel, GRAVITY, DRAG, steps.asInt(), collider(p));
+					heldLanding = r.landing();
+					heldHit = hitEntity;
+					draw(f, r, start, color.get() | 0xFF000000);
+				} else {
+					heldLanding = null;
+					heldHit = null;
+				}
+			}
+			if (flying.get()) {
+				int shown = 0;
+				for (Entity e : mc.level.entitiesForRendering()) {
+					if (!(e instanceof AbstractArrow) || e.isRemoved() || shown >= 16) continue;
+					Vec3 v = e.getDeltaMovement();
+					if (v.lengthSqr() < 1.0e-4) continue; // stuck in a block
+					shown++;
 					Vec3 start = e.position();
 					var r = Trajectory.simulate(new Trajectory.Point(start.x, start.y, start.z), new Trajectory.Point(v.x, v.y, v.z), GRAVITY, DRAG, steps.asInt(), collider(e));
 					draw(f, r, start, otherColor.get() | 0xFF000000);

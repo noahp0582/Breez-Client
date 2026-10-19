@@ -39,13 +39,16 @@ public class AimAssist extends Module {
 	private final NumberSetting deadZone = add(new NumberSetting("Dead zone (degrees)", 1.2, 0, 6), "Feel",
 		"No assist this close to the target, so it never fights you for the last bit.");
 	private final NumberSetting vertical = add(new NumberSetting("Vertical assist (%)", 40, 0, 100), "Feel", "Strength of the up/down correction; vertical pulls feel worse than sideways.");
-	private final BoolSetting onlyAttacking = add(new BoolSetting("Only while holding attack", true), "Feel", "Assist only while the attack button is down.");
+	private final BoolSetting onlyAttacking = add(new BoolSetting("Only while attacking", true), "Feel",
+		"Assist only while you are clicking or holding attack (it stays on for a moment after each click).");
 	private final BoolSetting onlyMoving = add(new BoolSetting("Only while I move the mouse", false), "Feel", "Assist only while you are turning the camera yourself.");
 	private final BoolSetting weaponOnly = add(new BoolSetting("Only with a weapon", true), "Feel", "Assist only while holding a sword, axe, mace or trident.");
 	private final BoolSetting aimChest = add(new BoolSetting("Aim at chest", true), "Feel", "Aim at the chest instead of the eyes.");
 
 	/** How long after your own mouse movement "Only while I move the mouse" keeps assisting. */
 	private static final long USER_TURN_GRACE_NANOS = 150_000_000L;
+	/** How long after an attack click "Only while attacking" keeps assisting; 1.9+ combat is one click per swing, not a held button. */
+	private static final long ATTACK_GRACE_NANOS = 700_000_000L;
 	/** Longest frame we act on, in ticks; a hitch should not turn into one big jump. */
 	private static final double MAX_FRAME_TICKS = 2.0;
 	private static AimAssist instance;
@@ -56,6 +59,7 @@ public class AimAssist extends Module {
 	private boolean haveExpected;
 	private float expectedYaw, expectedPitch;
 	private long lastUserTurn;
+	private long lastAttack;
 	private final float[] yawCarry = {0f}, pitchCarry = {0f};
 
 	public AimAssist() {
@@ -94,7 +98,11 @@ public class AimAssist extends Module {
 	/** Assist only applies when this holds; checked on ticks (to pick a target) and on frames (to turn). */
 	private boolean gatesOpen(Minecraft mc, LocalPlayer p) {
 		if (p == null || mc.level == null || mc.screen != null || mc.isPaused() || mc.getCameraEntity() != p) return false;
-		if (onlyAttacking.get() && !mc.options.keyAttack.isDown()) return false;
+		if (onlyAttacking.get()) {
+			long now = System.nanoTime();
+			if (mc.options.keyAttack.isDown()) lastAttack = now;
+			else if (now - lastAttack > ATTACK_GRACE_NANOS) return false;
+		}
 		return !weaponOnly.get() || weapon(p.getMainHandItem());
 	}
 

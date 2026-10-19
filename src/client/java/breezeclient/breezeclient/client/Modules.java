@@ -149,6 +149,7 @@ public final class Modules {
 		m.register(new DonutModules.PlayerChunks());
 		m.register(new RenderModules.BlockNotifier());
 		m.register(new RenderModules.PearlTrajectory());
+		m.register(new RenderModules.BowTrajectory());
 		m.register(new RenderModules.RealHitBox());
 		m.register(new RenderModules.TargetHud());
 		RenderModules.TargetHud.registerEvents();

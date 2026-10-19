@@ -160,6 +160,7 @@ public final class ModuleInfo {
 		m("PlayerChunks", "Remembers the chunks other players were seen in and outlines them, fading with age.");
 		m("BlockNotifier", "Tells you when one of the listed blocks shows up within range, with a pop-up and an optional chime.");
 		m("PearlTrajectory", "Draws where an ender pearl will land: the one in your hand and pearls already in the air.");
+		m("BowTrajectory", "Draws where your arrow or trident will hit while you hold a bow, loaded crossbow or trident, and outlines the player or mob it would hit.");
 		m("RealHitBox", "Draws the true hitbox of other entities (what the server uses), so you can compare it with what HitBox makes you aim at.");
 		m("TargetHUD", "A HUD panel for whoever you last hit or are aiming at: name, health bar, armor and distance.");
 		m("MusicHUD", "A HUD line with the music or record that is playing.");
