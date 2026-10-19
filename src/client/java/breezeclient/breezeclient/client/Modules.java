@@ -34,6 +34,7 @@ import breezeclient.breezeclient.client.modules.FreeLook;
 import breezeclient.breezeclient.client.modules.SkinProtect;
 import breezeclient.breezeclient.client.modules.AutoWalk;
 import breezeclient.breezeclient.client.modules.AutoClicker;
+import breezeclient.breezeclient.client.modules.AutoMessage;
 import breezeclient.breezeclient.client.modules.AutoTpa;
 import breezeclient.breezeclient.client.modules.FastUse;
 import breezeclient.breezeclient.client.modules.JumpCircles;
@@ -106,6 +107,7 @@ public final class Modules {
 		m.register(new AutoWalk());
 		m.register(new AutoClicker());
 		m.register(new AutoTpa());
+		m.register(new AutoMessage());
 		m.register(new FastUse());
 		m.register(new JumpCircles());
 		m.register(new HitParticles());
@@ -173,6 +175,7 @@ public final class Modules {
 		m.register(new AutoLog());
 		m.register(new AlertWebhook());
 		AlertWebhook.registerEvents();
+		AutoMessage.registerEvents();
 		m.register(new ItemEsp());
 		m.register(new ChestLooter());
 		ChestLooter.registerEvents();

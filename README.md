@@ -161,6 +161,7 @@ The look and layout are modelled on Meteor Client's, but all code here is origin
 | SpawnerProtect | A stranger comes close: picks up nearby spawners, then leaves the server. |
 | Baritone | Built-in pathing: `.goto <x y z \| x z \| waypoint \| player>`, `.mine <block...> [n]`, `.follow <player>`, `.explore`, `.tunnel [n] [dir]`, `.thisway [n]`, `.surface`, `.stop/.pause/.resume`. Walks, sprint-jumps gaps, breaks through blocks, digs down, pillars and bridges with your cheap blocks; never breaks containers, spawners or anything on its protected list. |
 | AutoWalk, AutoClicker, AutoTPA, FastUse, FreeLook, Zoom, CustomFOV, CustomCrosshair, JumpCircles, HitParticles, NameProtect, SkinProtect | Utility and visual modules. |
+| AutoMessage | Types a custom chat message (or command) after you kill someone or die, with a delay you choose; {player}, {killer} and random picks from a `\|`-separated list. |
 | AimAssist, Triggerbot, HoverTotem, AnchorMacro, DoubleAnchor, MaceSwap, MaceBomber, ShieldBreaker, ElytraSwap | Combat helpers. Every attack goes through one safety gate that refuses targets a vanilla server kicks you for (yourself, items, XP orbs, arrows). |
 
 | ArmorTrimHider, CustomGlint, MotionBlur, Animations | Render-only changes you see locally: hide or randomize armor trims, recolor the enchant glint (rainbow option), frame-blend motion blur (strength 1-5), steadier first-person hands (no equip/cooldown dip, swing speed, hand offset and size). |

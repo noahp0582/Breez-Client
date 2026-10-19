@@ -81,6 +81,7 @@ public final class ModuleInfo {
 		m("AutoWalk", "Holds the forward key for you.");
 		m("AutoClicker", "Attacks what your crosshair is on at a randomized click rate, waiting for the attack cooldown.");
 		m("AutoTPA", "Sends teleport requests to one player on a humanized timer, up to a limit.");
+		m("AutoMessage", "Types a message in chat after you kill someone or die, after a delay you choose. Use {player} and {killer} in the text; separate several messages with | to pick one at random.");
 		m("FastUse", "Shortens the delay between item uses and block placements.");
 		m("JumpCircles", "A glowing ring that expands and fades where you jump.");
 		m("HitParticles", "Bursts of particles when you hit something. Visual and local only.");

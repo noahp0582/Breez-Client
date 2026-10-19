@@ -12,6 +12,7 @@
 		"PlayerInfoMixin",
 		"MinecraftAccessor",
 		"AbstractContainerScreenAccessor",
+		"DeathScreenAccessor",
 		"EquipmentLayerRendererMixin",
 		"GameRendererAccessor",
 		"EntityRendererMixin",
