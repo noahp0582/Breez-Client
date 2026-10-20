@@ -173,6 +173,7 @@ public final class BuildTest {
 		finished = true;
 		var b = Modules.builder;
 		for (String n : b.notes()) LOG.add("  skip: " + n);
+		if (!b.notes().isEmpty() || !b.status().contains(", 0 to go")) for (String e : b.events()) LOG.add("  event: " + e);
 		List<String> near = new ArrayList<>();
 		for (var e : mc.level.getEntities(mc.player, new net.minecraft.world.phys.AABB(-20, 140, -20, 20, 170, 20))) near.add(net.minecraft.world.entity.EntityType.getKey(e.getType()).getPath() + " at " + e.blockPosition().toShortString());
 		if (!near.isEmpty()) LOG.add("  entities near the build: " + near);

@@ -94,13 +94,21 @@ final class Placer {
 		};
 	}
 
-	/** The grid points of one face, the one nearest the eye first. */
-	private static List<Vec3> nearestFirst(BlockPos pos, AABB b, Direction face, Vec3 eye) {
+	/**
+	 * The grid points of one face, its middle first: a click in the middle still lands on the face when the crosshair stops
+	 * a little beside the aim, one near an edge can land on the block next to it.
+	 */
+	private static List<Vec3> points(BlockPos pos, AABB b, Direction face) {
 		List<Vec3> pts = new java.util.ArrayList<>(GRID.length);
 		for (double[] g : GRID) pts.add(onFace(pos, b, face, g[0], g[1]));
-		pts.sort(java.util.Comparator.comparingDouble(eye::distanceToSqr));
 		return pts;
 	}
+
+	/** A face to click, with how far its middle is from the eye. */
+	private record Face(BlockPos block, Direction side, AABB box, double dist) {}
+
+	/** Sorts candidate faces nearest first (by the distance from the eye to the middle of each face). */
+	private static void nearestFirst(List<Face> faces) { faces.sort(java.util.Comparator.comparingDouble(Face::dist)); }
 
 	/** The ray from the eye through a point, as the crosshair would see it. Null unless it lands on that block and face. */
 	private static BlockHitResult sight(Minecraft mc, LocalPlayer p, Vec3 eye, Vec3 point, BlockPos block, Direction face, double reach) {
@@ -183,7 +191,7 @@ final class Placer {
 		if (halfOfDouble(cur, want)) {
 			Direction face = cur.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.BOTTOM ? Direction.UP : Direction.DOWN;
 			AABB b = cur.getShape(mc.level, pos).bounds();
-			for (Vec3 pt : nearestFirst(pos, b, face, eye)) {
+			for (Vec3 pt : points(pos, b, face)) {
 				BlockHitResult hit = sight(mc, p, eye, pt, pos, face, reach);
 				if (hit != null) return new Plan(hit, RotationController.rotationTo(eye, hit.getLocation()), true);
 			}
@@ -193,9 +201,8 @@ final class Placer {
 		// a torch on a wall is another block than a torch on the floor, and which one the item gives depends on the face clicked
 		boolean wallVariant = item instanceof StandingAndWallBlockItem && bi.getBlock() != want.getBlock();
 		boolean floorVariant = item instanceof StandingAndWallBlockItem && bi.getBlock() == want.getBlock();
-		// every face that is not covered gets a look; the one nearest the eye wins
-		Plan best = null, fallback = null;
-		double bestDist = Double.MAX_VALUE, fallbackDist = Double.MAX_VALUE;
+		// the faces that could be clicked, nearest the eye first: the first one that is not covered (and works) is used
+		List<Face> faces = new java.util.ArrayList<>(6);
 		for (Direction d : Direction.values()) {
 			Direction face = d.getOpposite();
 			// that face of the neighbour looks back toward the target: the eye must be on the target's side of it to see it
@@ -209,33 +216,30 @@ final class Placer {
 			VoxelShape shape = ss.getShape(mc.level, support);
 			if (shape.isEmpty()) continue;
 			AABB b = shape.bounds();
-			for (Vec3 pt : nearestFirst(support, b, face, eye)) { // the nearest spot of this face that works is this face's best
-				double dist = eye.distanceToSqr(pt);
-				if (dist >= bestDist) break; // a nearer face already works
-				BlockHitResult hit = sight(mc, p, eye, pt, support, face, reach);
+			faces.add(new Face(support, face, b, eye.distanceToSqr(onFace(support, b, face, 0.5, 0.5))));
+		}
+		nearestFirst(faces);
+		Plan fallback = null;
+		for (Face f : faces) {
+			for (Vec3 pt : points(f.block(), f.box(), f.side())) {
+				BlockHitResult hit = sight(mc, p, eye, pt, f.block(), f.side(), reach);
 				if (hit == null) continue; // covered there by another block (or out of reach)
 				Rotation rot = RotationController.rotationTo(eye, hit.getLocation());
 				BlockState got = simulate(p, want, item, hit, rot);
 				if (got == null) continue;
 				if (!orientedBlock || oriented(got, want)) {
-					if (steady(mc, p, eye, hit, want, item, reach, orientedBlock)) {
-						best = new Plan(hit, rot, true);
-						bestDist = dist;
-						break;
-					}
-				} else if (dist < fallbackDist && steady(mc, p, eye, hit, want, item, reach, false)) {
+					if (steady(mc, p, eye, hit, want, item, reach, orientedBlock)) return new Plan(hit, rot, true);
+				} else if (fallback == null && steady(mc, p, eye, hit, want, item, reach, false)) {
 					fallback = new Plan(hit, rot, false);
-					fallbackDist = dist;
 				}
 			}
 		}
-		if (best != null) return best;
 		return needExact ? null : fallback;
 	}
 
 	/**
-	 * A point on the block the eye can see within reach, or null: on the uncovered face nearest the eye (the nearest point of
-	 * it that is in sight), else the middle of the block if a ray gets there.
+	 * A point on the block the eye can see within reach, or null: on the uncovered face nearest the eye (its middle if that
+	 * is in sight), else the middle of the block if a ray gets there.
 	 */
 	static Vec3 visiblePoint(Minecraft mc, LocalPlayer p, BlockPos pos, Vec3 eye, double reach) {
 		BlockState st = mc.level.getBlockState(pos);
@@ -243,22 +247,19 @@ final class Placer {
 		if (shape.isEmpty()) return null;
 		AABB b = shape.bounds();
 		Vec3 mid = new Vec3(pos.getX() + (b.minX + b.maxX) / 2, pos.getY() + (b.minY + b.maxY) / 2, pos.getZ() + (b.minZ + b.maxZ) / 2);
-		Vec3 best = null;
-		double bestDist = Double.MAX_VALUE;
+		List<Face> faces = new java.util.ArrayList<>(3);
 		for (Direction face : Direction.values()) {
 			// only faces turned toward the eye can be seen at all
 			double side = (eye.x - mid.x) * face.getStepX() + (eye.y - mid.y) * face.getStepY() + (eye.z - mid.z) * face.getStepZ();
-			if (side <= 0) continue;
-			for (Vec3 pt : nearestFirst(pos, b, face, eye)) {
-				if (eye.distanceToSqr(pt) >= bestDist) break; // a nearer face is already in sight
-				BlockHitResult hit = sight(mc, p, eye, pt, pos, face, reach);
-				if (hit == null) continue; // another block covers this spot
-				best = hit.getLocation();
-				bestDist = eye.distanceToSqr(pt);
-				break;
+			if (side > 0) faces.add(new Face(pos, face, b, eye.distanceToSqr(onFace(pos, b, face, 0.5, 0.5))));
+		}
+		nearestFirst(faces);
+		for (Face f : faces) {
+			for (Vec3 pt : points(pos, b, f.side())) {
+				BlockHitResult hit = sight(mc, p, eye, pt, pos, f.side(), reach);
+				if (hit != null) return hit.getLocation(); // the first face in sight is the nearest one that is not covered
 			}
 		}
-		if (best != null) return best;
 		return sight(mc, p, eye, mid, pos, null, reach) != null ? mid : null;
 	}
 }

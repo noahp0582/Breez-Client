@@ -138,6 +138,8 @@ public class SchematicBuilder extends Module {
 	private final Set<Long> relaxed = new HashSet<>();
 	private final Map<Long, String> givenUp = new HashMap<>();
 	private final Map<Long, Integer> tries = new HashMap<>();
+	/** Where the player stood when a block failed three times: it is tried from another spot. */
+	private final Map<Long, Long> failedFrom = new HashMap<>();
 	/** Spare blocks the pathing put down, to be dug out once the build is done. */
 	private final Set<Long> clear = new HashSet<>();
 	private boolean cleaning;
@@ -401,6 +403,7 @@ public class SchematicBuilder extends Module {
 		relaxed.clear();
 		givenUp.clear();
 		tries.clear();
+		failedFrom.clear();
 		clear.clear();
 		cleaning = anyLayer = false;
 		farTries = 0;
@@ -445,6 +448,7 @@ public class SchematicBuilder extends Module {
 
 	private void markDone(long key) {
 		if (pending.remove(key)) done++;
+		failedFrom.remove(key);
 		farTries = 0;
 		stuck.remove(key);
 		tries.remove(key);
@@ -459,7 +463,22 @@ public class SchematicBuilder extends Module {
 
 	/** Another failed attempt at this block; the third one leaves it out. */
 	private void failed(long key, String why) {
-		if (tries.merge(key, 1, Integer::sum) >= 3) giveUp(key, why);
+		int n = tries.merge(key, 1, Integer::sum);
+		if (n >= 6) {
+			giveUp(key, why);
+		} else if (n == 3) { // three times from here: try it from somewhere else before leaving it out
+			var p = Minecraft.getInstance().player;
+			if (p != null) failedFrom.put(key, packedFeet(WorkNavigator.feet(p)));
+			stuck.add(key);
+		}
+	}
+
+	private static long packedFeet(Pos f) { return BlockPos.asLong(f.x(), f.y(), f.z()); }
+
+	/** True when this block already failed three times from a player standing in {@code feet}. */
+	private boolean failedHere(long key, Pos feet) {
+		Long at = failedFrom.get(key);
+		return at != null && at == packedFeet(feet);
 	}
 
 	private static boolean diggable(Minecraft mc, BlockPos pos) {
@@ -650,13 +669,27 @@ public class SchematicBuilder extends Module {
 		for (Direction d : Direction.Plane.HORIZONTAL) {
 			BlockPos c = pos.relative(d);
 			if (!pending.contains(c.asLong()) || !corner(c)) continue;
+			BlockState want = plan.get(c.asLong());
+			// a log or stair in the corner may need this very block to be clicked on to face the right way: never hold that up
+			if (want == null || Placer.hasOrientation(want) || !want.canSurvive(mc.level, c)) continue;
 			BlockState cur = mc.level.getBlockState(c);
 			if (!cur.isAir() && !cur.canBeReplaced()) continue; // something to dig there first
+			if (!hasSupport(mc, c)) continue; // nothing to place the corner against yet: waiting for it would wait forever
 			for (Direction side : new Direction[] {d.getClockWise(), d.getCounterClockWise()}) {
 				BlockPos o = c.relative(side);
 				BlockState s = mc.level.getBlockState(o);
 				if (plan.containsKey(o.asLong()) && !s.isAir() && !s.canBeReplaced()) return true;
 			}
+		}
+		return false;
+	}
+
+	/** Some neighbour (below or beside it) is there to place this block against. */
+	private static boolean hasSupport(Minecraft mc, BlockPos pos) {
+		for (Direction d : Direction.values()) {
+			if (d == Direction.UP) continue;
+			BlockState s = mc.level.getBlockState(pos.relative(d));
+			if (!s.isAir() && !s.canBeReplaced()) return true;
 		}
 		return false;
 	}
@@ -707,7 +740,7 @@ public class SchematicBuilder extends Module {
 				return Math.hypot(breezeclient.breezeclient.core.humanize.Rotations.wrapDegrees(to.yaw() - look.yaw()), to.pitch() - look.pitch());
 			}));
 		Pos feet = WorkNavigator.feet(p);
-		for (Job j : found) if (!wouldTrap(mc, feet, j) && workable(mc, p, j, eye, null, true)) return j;
+		for (Job j : found) if (!failedHere(j.pos().asLong(), feet) && !wouldTrap(mc, feet, j) && workable(mc, p, j, eye, null, true)) return j;
 		return null;
 	}
 
@@ -839,6 +872,7 @@ public class SchematicBuilder extends Module {
 			for (BlockPos t : frontier) {
 				if (eye.distanceToSqr(Vec3.atCenterOf(t)) > (r + 0.9) * (r + 0.9)) continue;
 				if (++tried > 10) break; // the frontier is nearest-first: ten in reach is plenty to tell whether this cell is any use
+				if (failedHere(t.asLong(), feet)) continue; // it already failed from this cell
 				Kind k = frontierKind.get(t.asLong());
 				BlockState want = plan.get(t.asLong());
 				if (k == null) continue;
@@ -860,6 +894,10 @@ public class SchematicBuilder extends Module {
 			}
 			case NOT_READY -> {
 				timer = 5;
+				if (notReady % 5 == 4 && p.onGround() && offCentre(p) > 0.1) { // half in another cell: stand in the middle of this one and ask again
+					centerTicks = 0;
+					state = State.CENTER;
+				}
 				if (++notReady > 20) { // cannot even start a search from here: nothing more to be done for these
 					notReady = 0;
 					for (BlockPos t : frontier) stuck.add(t.asLong());

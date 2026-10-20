@@ -165,6 +165,20 @@ public final class WorkNavigator {
 		Pos here = feet(p);
 		WorkGoal goal = new WorkGoal(targets, reach, eyeHeight, spot, mc.level, here, p.position().add(0, eyeHeight, 0));
 		Pathfinder.Result r = Pathfinder.search(LevelWorld.fromCrouch(new WorkWorld(new LevelWorld(mc.level, place), noPlace), mc.level, here.x(), here.y(), here.z()), here, goal, opts, 5000);
+		if (r == null) {
+			// the cell under the middle of the body is no place to start from (a block hangs over it, the edge of a slab):
+			// the body overlaps up to three more cells, and a route from one of those is as good
+			var box = p.getBoundingBox();
+			for (double cx : new double[] {box.minX + 0.01, box.maxX - 0.01}) {
+				for (double cz : new double[] {box.minZ + 0.01, box.maxZ - 0.01}) {
+					Pos other = new Pos((int) Math.floor(cx), here.y(), (int) Math.floor(cz));
+					if (other.equals(here) || r != null) continue;
+					WorkGoal g2 = new WorkGoal(targets, reach, eyeHeight, spot, mc.level, other, p.position().add(0, eyeHeight, 0));
+					r = Pathfinder.search(LevelWorld.fromCrouch(new WorkWorld(new LevelWorld(mc.level, place), noPlace), mc.level, other.x(), other.y(), other.z()), other, g2, opts, 5000);
+					if (r != null) here = other;
+				}
+			}
+		}
 		if (r == null) return Start.NOT_READY; // standing somewhere the search cannot start from (mid-step, on a slab edge)
 		if (r.reachedGoal() && r.steps().isEmpty()) { // already there
 			state = State.ARRIVED;
