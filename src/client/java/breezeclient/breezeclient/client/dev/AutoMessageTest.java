@@ -67,6 +67,12 @@ public final class AutoMessageTest {
 		return n;
 	}
 
+	private static int zombiesNear(Minecraft mc) {
+		int n = 0;
+		for (Entity e : mc.level.entitiesForRendering()) if (e instanceof Zombie z && z.isAlive() && z.distanceTo(mc.player) < 3.5) n++;
+		return n;
+	}
+
 	/** Chat lines containing {@code text} that arrived after tick {@code from}. */
 	private static List<Integer> arrivals(String text, int from) {
 		List<Integer> out = new ArrayList<>();
@@ -124,7 +130,8 @@ public final class AutoMessageTest {
 				cmd(mc, "summon minecraft:zombie 1.5 150 2.5 " + ZOMBIE);
 				cmd(mc, "summon minecraft:zombie -0.5 150 2.5 " + ZOMBIE);
 			}
-			if (ticks == 170) {
+			// both have to be on the client first: a busy server can send them a few ticks late
+			if (ticks >= 170 && ticks <= 190 && doubleAt == 0 && (zombiesNear(mc) >= 2 || ticks == 190)) {
 				doubleAt = ticks;
 				LOG.add("hit " + hitZombies(mc) + " zombie(s) at tick " + doubleAt);
 			}
