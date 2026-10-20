@@ -54,6 +54,8 @@ public class CrystalMacro extends Module {
 			onObsidian = false; // a slot switch the macro owes you does not outlive the use key
 			return;
 		}
+		// while the macro works the use key, vanilla must not keep placing the held block on its own as well
+		if (mc.options.keyUse.isDown()) ((breezeclient.breezeclient.client.mixin.MinecraftAccessor) mc).breez$setRightClickDelay(4);
 		if (cooldown > 0) {
 			cooldown--;
 			return;
@@ -67,9 +69,11 @@ public class CrystalMacro extends Module {
 			return;
 		}
 
-		if (!place.get() || !(hr instanceof BlockHitResult bh) || bh.getDirection() != Direction.UP) return;
+		if (!place.get() || !(hr instanceof BlockHitResult bh) || bh.getType() != HitResult.Type.BLOCK) return;
 		BlockPos base = bh.getBlockPos();
 		var state = level.getBlockState(base);
+		// a crystal goes on top of obsidian whichever face is clicked; a new base only goes on a top face
+		if (bh.getDirection() != Direction.UP && !state.is(Blocks.OBSIDIAN) && !state.is(Blocks.BEDROCK)) return;
 		BlockPos above = base.above();
 		if (!level.isEmptyBlock(above) || !level.isEmptyBlock(above.above())) return;
 		boolean solidBase = state.is(Blocks.OBSIDIAN) || state.is(Blocks.BEDROCK);

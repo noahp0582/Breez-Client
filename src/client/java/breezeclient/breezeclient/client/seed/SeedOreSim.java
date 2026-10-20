@@ -128,6 +128,16 @@ public final class SeedOreSim {
 			|| s.is(Blocks.POINTED_DRIPSTONE) || s.is(Blocks.SCULK_VEIN);
 	}
 
+	private static BlockState hostRock(ClientLevel level, int y) {
+		if (level.dimension() == net.minecraft.world.level.Level.NETHER) return Blocks.NETHERRACK.defaultBlockState();
+		return y < 0 ? Blocks.DEEPSLATE.defaultBlockState() : Blocks.STONE.defaultBlockState();
+	}
+
+	/** Blocks a player puts where rock was (tunnels get walled, floored and lit with these). */
+	private static boolean playerBlock(BlockState s) {
+		return breezeclient.breezeclient.core.sus.BaseSignatures.BUILDING_BLOCKS.contains(breezeclient.breezeclient.client.world.BlockIds.idOf(s.getBlock()));
+	}
+
 	private static BlockState atGeneration(BlockState s) {
 		if (laterDecoration(s)) return Blocks.AIR.defaultBlockState();
 		if (!isOre(s)) return s;
@@ -142,24 +152,37 @@ public final class SeedOreSim {
 
 	private static final class Run {
 		final ClientLevel level;
+		/** Dug-out spaces below the surface count as the rock that was there when the world was generated. */
+		final boolean asGenerated;
 		final Map<BlockPos, BlockState> claimed = new HashMap<>();
 		final RandomSource random;
 
-		Run(ClientLevel level, RandomSource random) {
+		Run(ClientLevel level, RandomSource random, boolean asGenerated) {
 			this.level = level;
+			this.asGenerated = asGenerated;
 			this.random = random;
 		}
 
 		BlockState state(BlockPos p) {
 			BlockState c = claimed.get(p);
-			return c != null ? c : atGeneration(level.getBlockState(p));
+			if (c != null) return c;
+			BlockState s = atGeneration(level.getBlockState(p));
+			if (asGenerated && (s.isAir() || playerBlock(s)) && p.getY() < height(level, p.getX(), p.getZ()) - 1) return hostRock(level, p.getY());
+			return s;
 		}
 	}
 
 	// public entry point ---------------------------------------------------------------------------------------------
 
 	/** Ore blocks predicted for veins that originate in chunk {@code cp}, keyed by position. May spill into neighbours. */
-	public static Map<BlockPos, BlockState> simulate(ClientLevel level, ChunkPos cp, long seed) {
+	public static Map<BlockPos, BlockState> simulate(ClientLevel level, ChunkPos cp, long seed) { return simulate(level, cp, seed, false); }
+
+	/**
+	 * Like {@link #simulate(ClientLevel, ChunkPos, long)}; with {@code asGenerated} the air and player-placed blocks below
+	 * the surface are taken for the rock the generator saw, so ores are predicted where somebody has since dug them out
+	 * (and, less precisely, in caves). For finding mined areas, not for showing ores.
+	 */
+	public static Map<BlockPos, BlockState> simulate(ClientLevel level, ChunkPos cp, long seed, boolean asGenerated) {
 		if (level != heightsLevel) { // column heights belong to one level; never reuse them across dimensions or servers
 			heightsLevel = level;
 			HEIGHTS.clear();
@@ -174,7 +197,7 @@ public final class SeedOreSim {
 		STATS[5]++;
 		if (biomes.isEmpty()) STATS[7]++;
 		WorldGenLevel proxy = proxy(level, seed);
-		Run run = new Run(level, random);
+		Run run = new Run(level, random, asGenerated);
 
 		for (int step = 0; step < dim.steps().size(); step++) {
 			FeatureSorter.StepFeatureData data = dim.steps().get(step);

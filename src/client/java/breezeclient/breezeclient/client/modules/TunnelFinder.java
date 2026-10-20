@@ -100,6 +100,11 @@ public class TunnelFinder extends Module {
 			byChunk.keySet().retainAll(loaded);
 			scanned.retainAll(loaded);
 		}
+		// tunnels dug while you are around: the chunks near you are read again once a minute
+		if (ticks % 1200 == 0) {
+			ChunkPos here = mc.player.chunkPosition();
+			scanned.removeIf(k -> Math.max(Math.abs(ChunkPos.getX(k) - here.x), Math.abs(ChunkPos.getZ(k) - here.z)) <= 2);
+		}
 		int every = Math.max(1, 20 / Math.max(1, rate.asInt()));
 		if (ticks % every != 0) return;
 		ChunkPos me = mc.player.chunkPosition();

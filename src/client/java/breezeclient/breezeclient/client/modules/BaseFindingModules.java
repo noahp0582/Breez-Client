@@ -652,16 +652,58 @@ public final class BaseFindingModules {
 		}
 
 		@Override
-		protected void onDisable() { results.clear(); }
+		protected void onDisable() {
+			results.clear();
+			sims.clear();
+		}
+
+		/**
+		 * Its own predictions, made as if every dug-out space below the surface were still rock: SeedOres' own predictions
+		 * leave out spots that are air now, so a chunk mined before you got there would look untouched.
+		 */
+		private final Map<Long, Map<BlockPos, BlockState>> sims = new HashMap<>();
+		private Object simLevel;
+		private Long simSeed;
+
+		private void simulateSome(ClientLevel level, ChunkPos me) {
+			Long seed = Modules.seedOres.seed();
+			if (seed == null || !breezeclient.breezeclient.client.seed.SeedOreSim.supports(level.dimension())) return;
+			if (level != simLevel || !seed.equals(simSeed)) {
+				sims.clear();
+				simLevel = level;
+				simSeed = seed;
+			}
+			Set<Long> loaded = ChunkScanner.loadedChunks();
+			if (ticks % 100 == 0) sims.keySet().retainAll(loaded);
+			List<Long> todo = new ArrayList<>();
+			for (long key : loaded) {
+				if (sims.containsKey(key)) continue;
+				if (Math.max(Math.abs(ChunkPos.getX(key) - me.x), Math.abs(ChunkPos.getZ(key) - me.z)) > 8) continue;
+				todo.add(key);
+			}
+			todo.sort(Comparator.comparingLong(k -> {
+				long dx = ChunkPos.getX(k) - me.x, dz = ChunkPos.getZ(k) - me.z;
+				return dx * dx + dz * dz;
+			}));
+			long deadline = System.nanoTime() + 4_000_000L;
+			for (long key : todo) {
+				if (System.nanoTime() > deadline) break;
+				ChunkPos cp = new ChunkPos(key);
+				if (!breezeclient.breezeclient.client.seed.SeedOreSim.ready(level, cp)) continue;
+				sims.put(key, breezeclient.breezeclient.client.seed.SeedOreSim.simulate(level, cp, seed, true));
+			}
+		}
 
 		@Override
 		protected void onTick() {
 			Minecraft mc = Minecraft.getInstance();
 			ClientLevel level = mc.level;
-			if (level == null || mc.player == null || Modules.seedOres == null || ++ticks % 60 != 0) return;
+			if (level == null || mc.player == null || Modules.seedOres == null) return;
+			simulateSome(level, mc.player.chunkPosition());
+			if (++ticks % 60 != 0) return;
 			results.clear();
 			ChunkPos me = mc.player.chunkPosition();
-			for (Map.Entry<Long, Map<BlockPos, BlockState>> en : Modules.seedOres.simulated().entrySet()) {
+			for (Map.Entry<Long, Map<BlockPos, BlockState>> en : sims.entrySet()) {
 				int cx = ChunkPos.getX(en.getKey()), cz = ChunkPos.getZ(en.getKey());
 				if (Math.max(Math.abs(cx - me.x), Math.abs(cz - me.z)) <= minDistance.asInt()) continue;
 				if (level.getChunkSource().getChunk(cx, cz, false) == null) continue; // unloaded chunks read as air, not as mined

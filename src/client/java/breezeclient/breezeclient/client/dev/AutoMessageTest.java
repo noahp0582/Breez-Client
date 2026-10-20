@@ -95,6 +95,7 @@ public final class AutoMessageTest {
 				cmd(mc, "time set day");
 				cmd(mc, "fill -6 140 -6 6 149 6 minecraft:stone");
 				cmd(mc, "fill -6 150 -6 6 160 6 minecraft:air");
+				cmd(mc, "fill -6 154 -6 6 154 6 minecraft:stone"); // a roof: the 1-health zombies would otherwise burn in the sun before they are hit
 				cmd(mc, "kill @e[type=!minecraft:player,x=-20,y=130,z=-20,dx=40,dy=50,dz=40]");
 				cmd(mc, "give @a minecraft:diamond_sword");
 			}
