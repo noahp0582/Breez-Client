@@ -25,9 +25,18 @@ public final class SelfTest {
 
 	private SelfTest() {}
 
+	/** The world keeps the player between test runs, dead ones too (the passive test drops the player from y=100): respawn. */
+	static void reviveAtStart(Minecraft mc) {
+		if (mc.player == null) return;
+		if (mc.player.isDeadOrDying() || mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen) {
+			mc.player.respawn();
+			mc.setScreen(null);
+		}
+	}
+
 	public static void register() {
 		if (System.getenv("BREEZ_SELFTEST") == null) return;
-		if (GuiTour.register() || NavTest.register() || ExtraTest.register() || RelogTest.register() || ModuleBatchTest.register() || BuildTest.register() || DigTest.register() || AimBowTest.register() || AutoMessageTest.register() || AllModulesTest.register()) return;
+		if (GuiTour.register() || NavTest.register() || ExtraTest.register() || RelogTest.register() || ModuleBatchTest.register() || BuildTest.register() || DigTest.register() || AimBowTest.register() || AutoMessageTest.register() || AllModulesTest.register() || PearlTest.register()) return;
 		ClientPlayConnectionEvents.JOIN.register((h, s, mc) -> ticks = 0);
 		ClientTickEvents.END_CLIENT_TICK.register(SelfTest::tick);
 	}

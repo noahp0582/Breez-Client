@@ -76,12 +76,18 @@ public final class AimBowTest {
 		if (ticks < 0 || mc.player == null || mc.level == null || finished) return;
 		ticks++;
 		mc.options.pauseOnLostFocus = false;
+		if (ticks < 25) SelfTest.reviveAtStart(mc); // an earlier test may have left the player dead
 		if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) mc.setScreen(null);
 		var p = mc.player;
 		var bow = (RenderModules.BowTrajectory) BreezClientClient.MODULES.get("BowTrajectory");
 		Module aim = BreezClientClient.MODULES.get("AimAssist");
 		try {
-			if (ticks == 10) {
+			if (ticks == 10) { // a player who logged in somewhere else would leave the arena's chunks unloaded and every fill below failing
+				cmd(mc, "gamemode creative @a");
+				cmd(mc, "forceload add -16 -16 16 80");
+				cmd(mc, "execute as @a run tp @s 0.5 166 0.5 0 0");
+			}
+			if (ticks == 30) {
 				cmd(mc, "gamemode survival @a");
 				cmd(mc, "clear @a");
 				cmd(mc, "effect give @a minecraft:resistance 600 4 true");

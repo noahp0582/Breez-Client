@@ -485,6 +485,7 @@ public final class ModuleBatchTest {
 		if (ticks < 0 || mc.player == null || mc.level == null) return;
 		ticks++;
 		mc.options.pauseOnLostFocus = false; // the window is not focused during an unattended run
+		if (ticks < 25) SelfTest.reviveAtStart(mc); // an earlier test may have left the player dead
 		if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) mc.setScreen(null);
 		var now = STEPS.get(ticks);
 		if (now == null) return;

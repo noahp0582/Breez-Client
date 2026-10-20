@@ -131,7 +131,7 @@ public final class ModuleInfo {
 		m("CrystalMacro", "Places and breaks end crystals at your crosshair with randomized timing, laying an obsidian base first when needed.");
 		m("TotemMacro", "Keeps a totem of undying in your offhand, refilling it after a pop.");
 		m("SpawnerPickup", "Walks to spawners, mines them with a silk touch pickaxe, then moves only the spawners into your ender chest.");
-		m("SchematicBuilder", "Builds a schematic by hand like a printer: places whatever in reach can be placed right now (lowest layer first), with the right orientation, and paths to the next spot when nothing can. Digs what is in the way, never shuts itself in, and can buy missing blocks from the auction house within a price limit. Use .build auto [file].");
+		m("SchematicBuilder", "Builds a schematic by hand like a printer: places whatever in reach can be placed right now (lowest layer first), with the right orientation, and paths to the next spot when nothing can. Digs what is in the way, never shuts itself in, throws an ender pearl up onto tall builds instead of pillaring a long way, and can buy missing blocks from the auction house within a price limit. Use .build auto [file].");
 
 		m("AutoDoubleHand", "When your health runs low and a totem is in the offhand, also holds a totem in the main hand so one pop never leaves you empty-handed.");
 		m("AutoInvTotem", "While your inventory is open, moves a totem into the offhand (and optionally a hotbar slot) with ordinary clicks.");

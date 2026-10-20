@@ -118,7 +118,8 @@ public final class RenderModules {
 
 	/** Draws where an ender pearl will land: for the one in your hand, and for pearls already in the air. */
 	public static class PearlTrajectory extends Module {
-		private static final double GRAVITY = 0.03, DRAG = 0.99, POWER = 1.5;
+		/** Same physics as the builder's pearl aim: vanilla applies gravity and drag before each move. */
+		private static final double POWER = breezeclient.breezeclient.core.physics.PearlAim.POWER;
 
 		private final BoolSetting held = add(new BoolSetting("Held pearl", true), "Show", "Preview the throw while you hold an ender pearl.");
 		private final BoolSetting flying = add(new BoolSetting("Pearls in flight", true), "Show", "Predict the landing of pearls that are already thrown (yours and other players').");
@@ -161,7 +162,7 @@ public final class RenderModules {
 				Vec3 move = p.getKnownMovement();
 				var vel = new Trajectory.Point(dx * POWER + move.x, dy * POWER + (p.onGround() ? 0 : move.y), dz * POWER + move.z);
 				Vec3 start = new Vec3(p.getX(), p.getEyeY() - 0.1f, p.getZ());
-				var r = Trajectory.simulate(new Trajectory.Point(start.x, start.y, start.z), vel, GRAVITY, DRAG, steps.asInt(), collider(p));
+				var r = breezeclient.breezeclient.core.physics.PearlAim.fly(new Trajectory.Point(start.x, start.y, start.z), vel, steps.asInt(), collider(p));
 				draw(f, r, start, color.get() | 0xFF000000);
 			}
 			if (flying.get()) {
@@ -171,7 +172,7 @@ public final class RenderModules {
 					shown++;
 					Vec3 v = e.getDeltaMovement();
 					Vec3 start = e.position();
-					var r = Trajectory.simulate(new Trajectory.Point(start.x, start.y, start.z), new Trajectory.Point(v.x, v.y, v.z), GRAVITY, DRAG, steps.asInt(), collider(e));
+					var r = breezeclient.breezeclient.core.physics.PearlAim.fly(new Trajectory.Point(start.x, start.y, start.z), new Trajectory.Point(v.x, v.y, v.z), steps.asInt(), collider(e));
 					draw(f, r, start, otherColor.get() | 0xFF000000);
 				}
 			}

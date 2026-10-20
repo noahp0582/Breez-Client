@@ -30,7 +30,7 @@ import java.util.List;
  * Writes run/build-test.txt and quits.
  */
 public final class BuildTest {
-	private record Want(int x, int y, int z, String block, String props) {}
+	record Want(int x, int y, int z, String block, String props) {}
 
 	private static final String NAME = "breez-test-house";
 	private static final List<Want> WANTS = new ArrayList<>();
@@ -73,10 +73,13 @@ public final class BuildTest {
 		WANTS.add(new Want(1, 1, 3, "minecraft:stone_slab", "type=bottom"));
 	}
 
-	private static void writeFile() throws Exception {
+	private static void writeFile() throws Exception { writeNbt(WANTS, 5, 3, 5, NAME); }
+
+	/** Writes {@code wants} as a structure .nbt called {@code name} into the mods folder. */
+	static void writeNbt(List<Want> wants, int sx, int sy, int sz, String name) throws Exception {
 		List<String> palette = new ArrayList<>();
 		ListTag blocks = new ListTag();
-		for (Want w : WANTS) {
+		for (Want w : wants) {
 			String key = w.block() + (w.props() == null ? "" : "[" + w.props() + "]");
 			int idx = palette.indexOf(key);
 			if (idx < 0) {
@@ -108,9 +111,9 @@ public final class BuildTest {
 			pal.add(e);
 		}
 		ListTag size = new ListTag();
-		size.add(IntTag.valueOf(5));
-		size.add(IntTag.valueOf(3));
-		size.add(IntTag.valueOf(5));
+		size.add(IntTag.valueOf(sx));
+		size.add(IntTag.valueOf(sy));
+		size.add(IntTag.valueOf(sz));
 		CompoundTag root = new CompoundTag();
 		root.put("size", size);
 		root.put("palette", pal);
@@ -118,13 +121,14 @@ public final class BuildTest {
 		root.putInt("DataVersion", 4671);
 		Path mods = FabricLoader.getInstance().getGameDir().resolve("mods");
 		Files.createDirectories(mods);
-		NbtIo.writeCompressed(root, mods.resolve(NAME + ".nbt"));
+		NbtIo.writeCompressed(root, mods.resolve(name + ".nbt"));
 	}
 
 	private static void tick(Minecraft mc) {
 		if (ticks < 0 || mc.player == null || mc.level == null) return;
 		ticks++;
 		mc.options.pauseOnLostFocus = false;
+		if (ticks < 25) SelfTest.reviveAtStart(mc); // an earlier test may have left the player dead
 		if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) mc.setScreen(null);
 		try {
 			if (ticks == 10) {
@@ -197,6 +201,7 @@ public final class BuildTest {
 				}
 			}
 		}
+		LOG.add((b.pearlsThrown() == 0 ? "PASS" : "FAIL") + " no pearls thrown on a 3-high build (" + b.pearlsThrown() + ")");
 		LOG.add((bad == 0 && total > 0 ? "PASS" : "FAIL") + " built " + (total - bad) + "/" + total + " blocks (stair facing, log axis and slab halves included)" + (missing.isEmpty() ? "" : " missing: " + missing));
 		try {
 			Files.writeString(FabricLoader.getInstance().getGameDir().resolve("build-test.txt"), String.join("\n", LOG) + "\n");

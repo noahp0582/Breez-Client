@@ -2,6 +2,7 @@ package breezeclient.breezeclient.client.modules;
 
 import breezeclient.breezeclient.client.humanize.RotationController;
 import breezeclient.breezeclient.client.input.Keys;
+import breezeclient.breezeclient.client.nav.PearlUp;
 import breezeclient.breezeclient.client.nav.WorkNavigator;
 import breezeclient.breezeclient.core.Category;
 import breezeclient.breezeclient.core.Module;
@@ -65,7 +66,7 @@ import java.util.Set;
  * asking the block what a click would produce, so stairs, logs, slabs, hoppers and the like come out the right way round.
  */
 public class SchematicBuilder extends Module {
-	private enum State { IDLE, SCAN, NAV, CENTER, DIG, AIM, PLACE, VERIFY, NEED_ITEMS, BUY, DONE }
+	private enum State { IDLE, SCAN, NAV, CENTER, PEARL, DIG, AIM, PLACE, VERIFY, NEED_ITEMS, BUY, DONE }
 
 	private enum Kind { PLACE, DIG }
 
@@ -83,6 +84,10 @@ public class SchematicBuilder extends Module {
 		"Break the blocks that are in the way of the build with the best tool in your hotbar, looking at each one first. Works with 3x3 pickaxes: blocks they clear are simply skipped. Containers, spawners and unbreakable blocks are never dug.");
 	private final BoolSetting scaffold = add(new BoolSetting("Scaffold when stuck", true), "General",
 		"When walking and jumping cannot reach a spot to build from, pillar up or bridge with a spare block from your hotbar (the Baritone module's Placeable blocks list). Those blocks are taken down again at the end.");
+	private final BoolSetting pearlUp = add(new BoolSetting("Pearl up to high work", true), "General",
+		"On tall builds, throws an ender pearl onto the build to get up to the work instead of pillaring a long way (or when there is no way up at all). It aims at flat ground near the work, simulating the pearl's flight first, and needs more than 5 hearts in survival (a pearl costs 2.5).");
+	private final NumberSetting pearlRise = add(new NumberSetting("Pearl when work is this high", 6, 3, 40), "General",
+		"How many blocks above your feet the work has to be before a pearl is thrown instead of pillaring. With no route at all it throws for anything 2 or more blocks up.", pearlUp::get);
 	private final BoolSetting sealIn = add(new BoolSetting("May shut itself in", false), "General",
 		"Off: a block that would leave it no way to walk out of the build is put off until it can be placed from a spot that has one (so walls are closed from outside, ceilings from the doorway). On: it places whatever it can.");
 	private final BoolSetting strict = add(new BoolSetting("Exact orientation only", false), "General",
@@ -109,6 +114,11 @@ public class SchematicBuilder extends Module {
 	private final ActionLimiter limiter = new ActionLimiter(rng);
 	private final WorkNavigator nav = new WorkNavigator();
 	private final AuctionBuyer buyer = new AuctionBuyer();
+	private final PearlUp pearl = new PearlUp();
+	/** Landing cells a pearl did not get it to; not aimed at again in this build. */
+	private final Set<Long> badLandings = new HashSet<>();
+	private int pearlFails;
+	private int pearlsThrown;
 
 	private SchematicData loaded;
 	private BlockPos origin;
@@ -313,7 +323,27 @@ public class SchematicBuilder extends Module {
 	public String status() {
 		if (loaded == null) return "No schematic loaded. Put files next to the mod jar and use .build auto [file] (searched: " + searched() + ").";
 		return String.format("%s: %d/%d placed, %d to go, state %s%s%s", file.get(), done, total, pending.size(), state.name().toLowerCase(Locale.ROOT),
-			givenUp.isEmpty() ? "" : ", " + leftOut(), wrongWay > 0 ? ", " + wrongWay + " may need turning" : "");
+			givenUp.isEmpty() ? "" : ", " + leftOut(), wrongWay > 0 ? ", " + wrongWay + " may need turning" : "")
+			+ (pearlsThrown > 0 ? ", " + pearlsThrown + " pearl" + (pearlsThrown == 1 ? "" : "s") + " thrown" : "");
+	}
+
+	/** Pearls thrown in this build (for the self-test). */
+	public int pearlsThrown() { return pearlsThrown; }
+
+	private final java.util.ArrayDeque<String> events = new java.util.ArrayDeque<>();
+
+	/** The last things it decided (pearls thrown and how they went), newest last: the quickest way to see a loop. */
+	public List<String> events() { return new ArrayList<>(events); }
+
+	private static String feetText() {
+		var p = Minecraft.getInstance().player;
+		return p == null ? "?" : p.blockPosition().toShortString();
+	}
+
+	private void event(String what) {
+		if (events.size() >= 80) events.removeFirst();
+		var mc = Minecraft.getInstance();
+		events.addLast((mc.level == null ? "" : mc.level.getGameTime() + " ") + what);
 	}
 
 	/** "4 left out (3 nowhere to stand to place it, 1 cannot dig Chest)". */
@@ -384,6 +414,8 @@ public class SchematicBuilder extends Module {
 		spentTotal = 0;
 		buyBroken = false;
 		buyRetryItem = null;
+		badLandings.clear();
+		pearlFails = pearlsThrown = 0;
 		state = State.SCAN;
 		timer = 10;
 	}
@@ -395,6 +427,7 @@ public class SchematicBuilder extends Module {
 		if (state == State.DIG && mc.gameMode != null) mc.gameMode.stopDestroyBlock(); // never leave a half-dug block cracking
 		Keys.release(mc.options.keyShift);
 		nav.cancel();
+		pearl.cancel();
 		RotationController.clear();
 		job = null;
 		state = State.IDLE;
@@ -413,12 +446,12 @@ public class SchematicBuilder extends Module {
 	private void markDone(long key) {
 		if (pending.remove(key)) done++;
 		farTries = 0;
-		anyLayer = false; // progress: back to working bottom-up
 		stuck.remove(key);
 		tries.remove(key);
 	}
 
 	private void giveUp(long key, String why) {
+		if (pending.contains(key)) event("give up " + BlockPos.of(key).toShortString() + ": " + why + " (feet " + feetText() + ")");
 		if (pending.remove(key)) givenUp.put(key, why);
 		stuck.remove(key);
 		tries.remove(key);
@@ -476,6 +509,7 @@ public class SchematicBuilder extends Module {
 	}
 
 	private boolean allowedNow(Job j) {
+		if (j.kind() == Kind.PLACE && !cleaning && sealsCorner(Minecraft.getInstance(), j.pos())) return false;
 		if (cleaning || anyLayer || j.kind() == Kind.DIG) return true;
 		if (faceFirst) return rank(j.want()) == 0;
 		return !innerFirst || !onRim(j.pos().getX(), j.pos().getZ());
@@ -600,6 +634,43 @@ public class SchematicBuilder extends Module {
 		return top ? 2 : 1; // hangs off the side of a neighbour: after the neighbours
 	}
 
+	/** The build has blocks on two sides of this one that meet at a right angle: an inside corner, hidden once both are in. */
+	private boolean corner(BlockPos pos) {
+		boolean x = plan.containsKey(pos.east().asLong()) || plan.containsKey(pos.west().asLong());
+		boolean z = plan.containsKey(pos.north().asLong()) || plan.containsKey(pos.south().asLong());
+		return x && z && !(plan.containsKey(pos.east().asLong()) && plan.containsKey(pos.west().asLong())) && !(plan.containsKey(pos.north().asLong()) && plan.containsKey(pos.south().asLong()));
+	}
+
+	/**
+	 * Placing here would close the last open side of a corner of the build that is still to come: once both of its side
+	 * neighbours are in, it can no longer be seen from inside. It waits until that corner is placed (or given up).
+	 */
+	private boolean sealsCorner(Minecraft mc, BlockPos pos) {
+		if (mc.level == null) return false;
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			BlockPos c = pos.relative(d);
+			if (!pending.contains(c.asLong()) || !corner(c)) continue;
+			BlockState cur = mc.level.getBlockState(c);
+			if (!cur.isAir() && !cur.canBeReplaced()) continue; // something to dig there first
+			for (Direction side : new Direction[] {d.getClockWise(), d.getCounterClockWise()}) {
+				BlockPos o = c.relative(side);
+				BlockState s = mc.level.getBlockState(o);
+				if (plan.containsKey(o.asLong()) && !s.isAir() && !s.canBeReplaced()) return true;
+			}
+		}
+		return false;
+	}
+
+	/** How many of the four side neighbours hold a solid block right now. */
+	private static int filledSides(Minecraft mc, BlockPos pos) {
+		int n = 0;
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			BlockState s = mc.level.getBlockState(pos.relative(d));
+			if (!s.isAir() && !s.canBeReplaced()) n++;
+		}
+		return n;
+	}
+
 	/** Looks at everything of the build within reach and returns the first thing that can be done from here, or null. */
 	private Job scan(Minecraft mc, LocalPlayer p) {
 		inOwnWay = false;
@@ -628,7 +699,9 @@ public class SchematicBuilder extends Module {
 		if (found.isEmpty()) return null;
 		// lowest layer first, face-critical blocks before the rest, then whatever needs the smallest turn of the head
 		Rotation look = RotationController.current();
+		// then the ones with the fewest sides already filled: a corner whose two neighbours are in can no longer be seen from inside
 		found.sort(java.util.Comparator.comparingInt((Job j) -> j.pos().getY()).thenComparingInt(j -> j.kind() == Kind.DIG ? -1 : rank(j.want()))
+			.thenComparingInt(j -> j.kind() == Kind.DIG ? 0 : corner(j.pos()) ? 0 : 1 + Math.min(2, filledSides(mc, j.pos())))
 			.thenComparingDouble(j -> {
 				Rotation to = RotationController.rotationTo(eye, Vec3.atCenterOf(j.pos()));
 				return Math.hypot(breezeclient.breezeclient.core.humanize.Rotations.wrapDegrees(to.yaw() - look.yaw()), to.pitch() - look.pitch());
@@ -673,6 +746,7 @@ public class SchematicBuilder extends Module {
 				}
 			}
 			case CENTER -> centre(mc, p);
+			case PEARL -> pearling(mc, p);
 			case NAV -> walking(mc, p);
 			case DIG -> dig(mc, p);
 			case AIM -> aim(mc, p);
@@ -760,7 +834,7 @@ public class SchematicBuilder extends Module {
 		}
 		if (scaffold.get() && !cleaning) spareBlock(mc, p);
 		double r = reach.get();
-		WorkNavigator.Start s = nav.start(mc, frontier, r, p.getEyeHeight(Pose.CROUCHING), (feet, eye) -> {
+		WorkNavigator.Spot spot = (feet, eye) -> {
 			int tried = 0;
 			for (BlockPos t : frontier) {
 				if (eye.distanceToSqr(Vec3.atCenterOf(t)) > (r + 0.9) * (r + 0.9)) continue;
@@ -772,7 +846,12 @@ public class SchematicBuilder extends Module {
 				if (workable(mc, p, j, eye, feet, false) && !wouldTrap(mc, feet, j)) return true;
 			}
 			return false;
-		}, scaffold.get() && !cleaning, plan::containsKey);
+		};
+		// far below the work: a pearl beats pillaring all the way up
+		if (startPearl(mc, p, spot, false)) return;
+		WorkNavigator.Start s = nav.start(mc, frontier, r, p.getEyeHeight(Pose.CROUCHING), spot, scaffold.get() && !cleaning, plan::containsKey);
+		if (s == WorkNavigator.Start.NO_ROUTE && startPearl(mc, p, spot, true)) return; // no way up on foot at all
+		event("nav " + s + (s == WorkNavigator.Start.OK ? (nav.partial() ? " partial" : "") : "") + " to " + frontier.size() + " targets from " + feetText());
 		switch (s) {
 			case OK -> {
 				notReady = 0;
@@ -790,6 +869,51 @@ public class SchematicBuilder extends Module {
 				for (BlockPos t : frontier) stuck.add(t.asLong()); // the next scan looks at the ones after these
 				timer = 1;
 			}
+		}
+	}
+
+	/**
+	 * Throws a pearl up to a spot to work from when all the work in front of it is at least the set height above its feet
+	 * ({@code noRoute}: walking found no way at all, so 2 blocks up is enough).
+	 */
+	private boolean startPearl(Minecraft mc, LocalPlayer p, WorkNavigator.Spot spot, boolean noRoute) {
+		if (!pearlUp.get() || cleaning || frontier.isEmpty() || pearlFails >= 4 || !p.onGround()) return false;
+		if (!PearlUp.havePearl(p, creativeSupply.get()) || !PearlUp.healthy(p)) return false;
+		int feetY = WorkNavigator.feet(p).y();
+		int lowest = Integer.MAX_VALUE;
+		for (BlockPos t : frontier) lowest = Math.min(lowest, t.getY());
+		int rise = noRoute ? 2 : pearlRise.asInt();
+		if (lowest - feetY < rise) return false;
+		PearlUp.Landing l = PearlUp.find(mc, frontier, reach.get(), spot, k -> pending.contains(k), 2, badLandings);
+		if (l == null) return false;
+		nav.cancel();
+		Keys.release(mc.options.keyShift);
+		pearl.start(l, creativeSupply.get());
+		state = State.PEARL;
+		event("pearl to " + l.feet().toShortString() + " pitch " + String.format(Locale.ROOT, "%.1f", l.shot().pitch()) + (noRoute ? " (no route)" : ""));
+		return true;
+	}
+
+	private void pearling(Minecraft mc, LocalPlayer p) {
+		boolean thrown = pearl.landing() != null && pearl.status() == PearlUp.Status.WORKING;
+		switch (pearl.tick(mc)) {
+			case LANDED -> {
+				pearlsThrown++;
+				pearlFails = 0;
+				stuck.clear(); // everything up here is new ground
+				event("pearl landed at " + p.blockPosition().toShortString());
+				pearl.cancel();
+				rescan(limiter.between(3, 6));
+			}
+			case FAILED -> {
+				if (thrown && pearl.failReason().startsWith("the pearl")) pearlsThrown++;
+				pearlFails++;
+				badLandings.add(pearl.landing().feet().asLong());
+				event("pearl failed: " + pearl.failReason());
+				pearl.cancel();
+				rescan(limiter.between(5, 10));
+			}
+			default -> { }
 		}
 	}
 
@@ -962,6 +1086,7 @@ public class SchematicBuilder extends Module {
 		if (cur.isAir() || cur.canBeReplaced() || cur.getBlock() == job.want().getBlock()) { // gone, maybe with a 3x3 pickaxe
 			mc.gameMode.stopDestroyBlock();
 			stuck.clear();
+			anyLayer = false;
 			rescan(limiter.between(1, 3));
 			return;
 		}
@@ -1118,6 +1243,8 @@ public class SchematicBuilder extends Module {
 		if (now.getBlock() == job.want().getBlock()) {
 			tries.remove(key);
 			stuck.clear(); // a new block is a new thing to click on and to stand on
+			anyLayer = false; // progress: back to working bottom-up (not on finding a block already there, which happens mid-scan)
+			event("placed " + job.pos().toShortString() + " from " + feetText());
 			if (!Placer.halfOfDouble(now, job.want())) { // a double slab stays on the list for its second half
 				if (Placer.hasOrientation(job.want()) && !Placer.oriented(now, job.want())) wrongWay++;
 				markDone(key);

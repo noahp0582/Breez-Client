@@ -43,6 +43,7 @@ public final class DigTest {
 		if (ticks < 0 || mc.player == null || mc.level == null) return;
 		ticks++;
 		mc.options.pauseOnLostFocus = false;
+		if (ticks < 25) SelfTest.reviveAtStart(mc); // an earlier test may have left the player dead
 		if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) mc.setScreen(null);
 		if (mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen) { // an earlier survival test can leave the player dead
 			mc.player.respawn();
