@@ -27,6 +27,9 @@ public final class AutoMessageTest {
 	/** Chat lines the client received, with the tick they arrived on. */
 	private static final List<String> CHAT = new ArrayList<>();
 	private static final List<Integer> CHAT_AT = new ArrayList<>();
+	/** When each chat line arrived, in milliseconds: the module times its delay by the clock, and ticks bunch up after a lag spike. */
+	private static final List<Long> CHAT_MS = new ArrayList<>();
+	private static long killMs, deathMs;
 	private static int ticks = -1;
 	private static int killAt, doubleAt, deathAt;
 	private static boolean finished;
@@ -40,6 +43,7 @@ public final class AutoMessageTest {
 		ClientReceiveMessageEvents.CHAT.register((message, signed, sender, params, time) -> {
 			CHAT.add(message.getString());
 			CHAT_AT.add(ticks);
+			CHAT_MS.add(System.currentTimeMillis());
 		});
 		return true;
 	}
@@ -71,6 +75,12 @@ public final class AutoMessageTest {
 		int n = 0;
 		for (Entity e : mc.level.entitiesForRendering()) if (e instanceof Zombie z && z.isAlive() && z.distanceTo(mc.player) < 3.5) n++;
 		return n;
+	}
+
+	/** Milliseconds from {@code sinceMs} to the first matching chat line after tick {@code from}, or -1. */
+	private static long msAfter(String text, int from, long sinceMs) {
+		for (int i = 0; i < CHAT.size(); i++) if (CHAT_AT.get(i) > from && CHAT.get(i).contains(text)) return CHAT_MS.get(i) - sinceMs;
+		return -1;
 	}
 
 	/** Chat lines containing {@code text} that arrived after tick {@code from}. */
@@ -116,14 +126,15 @@ public final class AutoMessageTest {
 			if (ticks == 40) cmd(mc, "summon minecraft:zombie 0.5 150 2.5 " + ZOMBIE);
 			if (ticks == 60) {
 				killAt = ticks;
+				killMs = System.currentTimeMillis();
 				LOG.add("hit " + hitZombies(mc) + " zombie(s) at tick " + killAt);
 			}
 			if (ticks == 140) {
 				var got = arrivals("gg Zombie", killAt);
 				LOG.add("chat so far: " + CHAT);
 				check(got.size() == 1, "one kill message was typed (" + got.size() + ")");
-				int lag = got.isEmpty() ? -1 : got.get(0) - killAt;
-				check(lag >= 36 && lag <= 50, "it came after the 2 s delay (" + lag + " ticks)");
+				long ms = msAfter("gg Zombie", killAt, killMs);
+				check(ms >= 1900 && ms <= 2900, "it came after the 2 s delay (" + ms + " ms)");
 			}
 
 			// 2. two kills at once: the cooldown lets one message through
@@ -144,6 +155,7 @@ public final class AutoMessageTest {
 			// 3. death: "rip" (no player killed us, so {killer} is empty)
 			if (ticks == 270) {
 				deathAt = ticks;
+				deathMs = System.currentTimeMillis();
 				cmd(mc, "kill @a");
 			}
 			if (ticks == 290) LOG.add("death screen up: " + (mc.screen instanceof DeathScreen));
@@ -151,8 +163,8 @@ public final class AutoMessageTest {
 				var got = arrivals("rip", deathAt);
 				LOG.add("chat so far: " + CHAT);
 				check(got.size() == 1, "death message was typed (" + got.size() + ")");
-				int lag = got.isEmpty() ? -1 : got.get(0) - deathAt;
-				check(lag >= 36 && lag <= 50, "it came after the 2 s delay (" + lag + " ticks)");
+				long ms = msAfter("rip", deathAt, deathMs);
+				check(ms >= 1900 && ms <= 2900, "it came after the 2 s delay (" + ms + " ms)");
 				check(CHAT.stream().noneMatch(s -> s.contains("{")), "no {placeholder} was left in any message");
 				p.respawn();
 				mc.setScreen(null);

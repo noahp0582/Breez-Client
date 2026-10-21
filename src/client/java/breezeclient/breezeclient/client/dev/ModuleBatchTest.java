@@ -106,6 +106,14 @@ public final class ModuleBatchTest {
 		return n;
 	}
 
+	private static String describeHit() {
+		var h = mc().hitResult;
+		if (h == null) return "null";
+		String s = h.getType().toString();
+		if (h instanceof BlockHitResult bh) s += " " + bh.getBlockPos().toShortString() + " " + bh.getDirection() + " " + mc().level.getBlockState(bh.getBlockPos()).getBlock() + " be=" + (mc().level.getBlockEntity(bh.getBlockPos()) != null);
+		return s + " mode=" + mc().gameMode.getPlayerMode() + " hand=" + mc().player.getMainHandItem() + " attackKey=" + mc().options.keyAttack.saveString() + " miss=" + mc().missTime;
+	}
+
 	private static int slot() { return mc().player.getInventory().getSelectedSlot(); }
 
 	private static void give(String where, String item) { as("item replace entity @s " + where + " with " + item); }
@@ -189,7 +197,7 @@ public final class ModuleBatchTest {
 		at(200, () -> {
 			var level = mc().level;
 			boolean stoneGone = level.getBlockState(new net.minecraft.core.BlockPos(0, 149, 0)).isAir() && level.getBlockState(new net.minecraft.core.BlockPos(0, 148, 0)).isAir();
-			check("AutoMine breaks the stone under the crosshair", stoneGone, "149=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 149, 0)).getBlock() + " 148=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 148, 0)).getBlock() + " 147=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 147, 0)).getBlock() + " attackDown=" + mc().options.keyAttack.isDown() + " grabbed=" + mc().mouseHandler.isMouseGrabbed() + " screen=" + mc().screen + " hit=" + mc().hitResult + " enabled=" + mod("AutoMine").enabled() + " playerY=" + mc().player.getY());
+			check("AutoMine breaks the stone under the crosshair", stoneGone, "149=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 149, 0)).getBlock() + " 148=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 148, 0)).getBlock() + " 147=" + level.getBlockState(new net.minecraft.core.BlockPos(0, 147, 0)).getBlock() + " attackDown=" + mc().options.keyAttack.isDown() + " grabbed=" + mc().mouseHandler.isMouseGrabbed() + " screen=" + mc().screen + " hit=" + describeHit() + " enabled=" + mod("AutoMine").enabled() + " playerY=" + mc().player.getY());
 			boolean chest = level.getBlockState(new net.minecraft.core.BlockPos(0, 144, 0)).is(net.minecraft.world.level.block.Blocks.CHEST);
 			// the column is 145-149 stone; the chest sits below it, so it must survive however far the mining went
 			check("AutoMine never breaks a container", chest, "");
