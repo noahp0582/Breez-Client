@@ -3,7 +3,8 @@
 A standalone Fabric client mod for Minecraft **1.21.11**: ESP, base-hunting tools, safety tooling, automation and macros.
 It has its own module system, config, command prefix and click GUI. It does not depend on Meteor, Baritone or any other client.
 
-> Using a client like this breaks the rules of most multiplayer servers and can get you banned. Use it where you are allowed to.
+> [!WARNING]
+> **Ban risk.** Using a client like this breaks the rules of most multiplayer servers (DonutSMP included), and their anticheats and staff can detect it. You can be banned, temporarily or permanently, and lose your items and progress. Use it only where you are allowed to, at your own risk. The authors are not responsible for any bans or losses.
 
 ## Build and run
 
@@ -217,4 +218,4 @@ and ESP, freecam and fullbright are only invisible because they are local. Treat
 
 ## License
 
-CC0-1.0 (see LICENSE).
+MIT (see LICENSE).

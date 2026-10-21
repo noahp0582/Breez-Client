@@ -8,10 +8,10 @@
 		"noahp"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/noahp0582/Breez-Client",
+		"sources": "https://github.com/noahp0582/Breez-Client"
 	},
-	"license": "CC0-1.0",
+	"license": "MIT",
 	"icon": "assets/breez-client/icon.png",
 	"environment": "*",
 	"entrypoints": {
