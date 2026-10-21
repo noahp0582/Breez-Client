@@ -64,8 +64,7 @@ screen), as a line on its settings page, in its tooltip, and from chat with `.de
 | **Use at Risk** | Acts on its own in ways a strict anti-cheat or an attentive moderator can notice. |
 | **Detected** | Known to be flagged by common anti-cheats. |
 
-Modules are rated by what they send to
-the server. These are estimates of behavior, not guarantees: servers differ and change, so treat anything but the local-only
+Modules are rated by what they send to the server. These are estimates of behavior, not guarantees: servers differ and change, so treat anything but the local-only
 modules as something that can get you banned.
 
 | Status | Modules |
@@ -182,7 +181,7 @@ The look and layout are modelled on Meteor Client's, but all code here is origin
 
 CrystalMacro can now lay an obsidian base first: aim at the top of a block that is not obsidian or bedrock and it places obsidian from your hotbar, then switches back to crystals.
 
-Not built on purpose: FakePay and FakeStats and GambleRigger. They exist to fake payments and balances or to rig gambles against other players, so they are not part of this client.
+Not built on purpose: FakePay, FakeStats and GambleRigger. Those only fake payments and balances or rig gambles against other players, so they are not part of this client.
 
 Waypoints: `.waypoints list|add|remove|clear`. Finds from SpawnerESP, AmethystDetector and SusChunks can save waypoints automatically.
 

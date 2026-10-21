@@ -35,9 +35,8 @@ public final class ModuleInfo {
 	}
 
 	static {
-		// Rated by what each module sends to
-		// the server and how visible it is: pure rendering and local-only modules are Undetected, anything that places,
-		// breaks, clicks or paths on its own at speed is Use at Risk.
+		// Rated by what each module sends to the server and how visible it is: pure rendering and local-only modules are
+		// Undetected, anything that places, breaks, clicks or paths on its own at speed is Use at Risk.
 		d("HitBox", Detection.DETECTED);
 		d("TunnelBaseFinder", Detection.DETECTED);
 		d("TotemMacro", Detection.USE_AT_RISK);
