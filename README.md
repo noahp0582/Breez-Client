@@ -1,5 +1,7 @@
 # Breez Client
 
+## Made With Claude.
+
 A standalone Fabric client mod for Minecraft **1.21.11**: ESP, base-hunting tools, safety tooling, automation and macros.
 It has its own module system, config, command prefix and click GUI. It does not depend on Meteor, Baritone or any other client.
 
