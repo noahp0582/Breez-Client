@@ -109,7 +109,7 @@ public final class ModuleInfo {
 		m("CustomGlint", "Recolors the enchantment glint on items and armor, with an optional rainbow cycle. Local only.");
 		m("HitBox", "Your crosshair treats other entities as slightly wider. The server still uses the real hitbox and its own reach check, so keep it small.");
 		m("NameTags", "HUD-styled nametags with health, distance and gear for players, and names with counts for dropped items; visible through walls.");
-		m("CreamyKeys", "Synthesized soft keyboard, mouse and scroll sounds with pitch variation. Only you hear them.");
+		m("CreamyKeys", "Recorded Cherry MX switch sounds (from the CreamyKeys mod) for keys, mouse clicks and scrolling. Only you hear them.");
 		m("CustomAccessories", "Cosmetics for yourself: a custom cape, trail, aura and crown. Only you see them.");
 		m("Animations", "Steadier first-person hands: no equip or cooldown dip, swing speed, hand offset and size. Visual only.");
 		m("RegionMap", "HUD map of regions you define (name x1 z1 x2 z2), with an alert when you enter a different one.");
